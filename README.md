@@ -1,5 +1,8 @@
 # vivarium-gallery — 런타임 UI 변경/롤백 시험 갤러리
 
+**▶ 전시 보기: https://iyulab.github.io/vivarium-gallery/** — 클론 없이 실모델
+run 결과물(최종 화면·턴 기록·롤백 판정)을 그대로 열람할 수 있습니다.
+
 [Vivarium 패밀리](https://github.com/iyulab/vivarium)의 **소비자 재현 샘플**.
 다양한 도메인·변경 유형·모델 조건에서 **런타임 UI 변경 요구사항이 안정적으로
 적용되고 롤백되는지**를 시험하는 상설 표면이며, 시험 산출물이 리포에 남아
@@ -96,8 +99,10 @@ node host/tools/verify-consumption.ts
 세션 축은 실측 종결 — 재시작 후 세션 계보가 단절되는 갭을 확인했고,
 업스트림 재수화 원칙으로 이어졌다.
 
-전시 표면: [index/gallery.html](index/gallery.html)
-(`node index/build-index.ts`로 재생성).
+전시 표면: **https://iyulab.github.io/vivarium-gallery/** (로컬 원본은
+[index/gallery.html](index/gallery.html), `node index/build-index.ts`로 재생성).
+Pages 는 배포 시 `exhibits/` 에서 인덱스를 **재생성**하므로, run 을 추가하고
+build-index 를 깜빡해도 사이트에는 반영됩니다.
 
 ## 이 샘플이 발견한 것
 
