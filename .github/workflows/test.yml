@@ -1,0 +1,35 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      # No lockfile by design (consumption realism): every run resolves the
+      # latest semver-compatible published packages. That IS the dogfooding —
+      # a break here means a published package broke its consumers.
+      - name: Install from the registry
+        run: npm install
+      - name: Start stage-host (8891) and the gallery host (8890)
+        run: |
+          dotnet run --project host/stage-host -- 8891 &
+          node host/server.ts 8890 --exhibit dashboard &
+          for i in $(seq 1 30); do
+            curl -sf -o /dev/null "http://localhost:8890/host/index.html" && \
+            curl -s -o /dev/null "http://localhost:8891/" && break
+            sleep 2
+          done
+      # Deterministic regression: scripted provider, no API key, no network model.
+      - name: Smoke (scripted)
+        run: node host/smoke.ts

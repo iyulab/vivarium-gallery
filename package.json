@@ -1,0 +1,22 @@
+{
+  "name": "vivarium-gallery",
+  "private": true,
+  "description": "Consumer-reproduction sample for the Vivarium family — runtime UI change/rollback trials across domains, change types and models.",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iyulab/vivarium-gallery.git"
+  },
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=23"
+  },
+  "dependencies": {
+    "@vivariumjs/agent": "^0.1.0",
+    "@vivariumjs/changeset": "^0.2.0",
+    "@vivariumjs/runtime": "^0.1.0"
+  },
+  "devDependencies": {
+    "jsdom": "^29.1.1"
+  }
+}

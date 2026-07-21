@@ -1,0 +1,15 @@
+node_modules/
+
+# 소비 현실성(README) — lockfile 은 의도적으로 커밋하지 않는다.
+package-lock.json
+
+# 실모델 키. 절대 커밋 금지.
+.env
+.env.local
+
+# .NET 빌드 산출물
+bin/
+obj/
+
+# 개발 진행 기록은 이 리포에 두지 않는다 (정제 문서만 공개).
+claudedocs/

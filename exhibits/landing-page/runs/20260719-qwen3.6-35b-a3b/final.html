@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>landing-page · 20260719-qwen3.6-35b-a3b — vivarium gallery run</title>
+  <link rel="icon" href="data:," />
+  <style>
+    body { font-family: -apple-system, "Segoe UI", sans-serif; margin: 0; background: #f6f7f9; color: #1c1f24; }
+    header { padding: 0.8rem 1rem; font-size: 0.85rem; border-bottom: 1px solid #d8dbe0; background: #fff; }
+    header b { font-size: 1rem; }
+    header .note { color: #666; }
+    #root { padding: 0.5rem; }
+    #error { color: #d64545; padding: 1rem; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <header>
+    <b>제품 랜딩 페이지</b> — run 20260719-qwen3.6-35b-a3b
+    <div class="note">자립형 아카이브 뷰어 · capability 값은 아카이브 시점 스냅샷 · 히어로·기능 그리드·CTA로 구성된 랜딩 페이지를 채팅으로 변형하는 전시물</div>
+  </header>
+  <div id="root"></div>
+  <div id="error" hidden></div>
+  <script type="module">
+    const ARTIFACT_SOURCE = "export default async function mount(root, api) {\n  const content = await api.invoke(\"landing.content\", {});\n  // Section list is OWNED BY THE ARTIFACT — order and presence are edited\n  // here; the capability only supplies copy/data for each section kind.\n  const sections = [\"hero\", \"faq\", \"features\", \"cta\"];\n  root.innerHTML = \"\";\n  const page = document.createElement(\"div\");\n  page.style.cssText = \"font-family:system-ui,sans-serif;color:#f4f6f8;background:#16181d\";\n  const builders = {\n    hero() {\n      const s = document.createElement(\"section\");\n      s.style.cssText = \"padding:64px 24px;text-align:center;background:#1a1d24\";\n      const h = document.createElement(\"h1\");\n      h.style.cssText = \"font-size:34px;margin:0 0 8px\";\n      h.textContent = content.name;\n      const p = document.createElement(\"p\");\n      p.style.cssText = \"font-size:17px;color:#a1a1aa;margin:0\";\n      p.textContent = content.tagline;\n      s.append(h, p);\n      return s;\n    },\n    features() {\n      const s = document.createElement(\"section\");\n      s.style.cssText = \"display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px;padding:40px 24px;max-width:960px;margin:0 auto\";\n      for (const f of content.features) {\n        const card = document.createElement(\"article\");\n        card.style.cssText = \"border:1px solid #2d3340;border-radius:10px;padding:16px\";\n        const h = document.createElement(\"h3\");\n        h.style.cssText = \"margin:0 0 6px;font-size:16px\";\n        h.textContent = f.title;\n        const p = document.createElement(\"p\");\n        p.style.cssText = \"margin:0;font-size:14px;color:#a1a1aa\";\n        p.textContent = f.body;\n        card.append(h, p);\n        s.append(card);\n      }\n      return s;\n    },\n    faq() {\n      const s = document.createElement(\"section\");\n      s.style.cssText = \"padding:40px 24px;max-width:960px;margin:0 auto;background:#1a1d24;font-family:system-ui,sans-serif\";\n      const items = [\n        { q: \"How much does it cost?\", a: \"Our plan starts at $29/month with no hidden fees.\" },\n        { q: \"Can I import existing data?\", a: \"Yes, we support CSV and JSON imports out of the box.\" },\n        { q: \"Can I cancel anytime?\", a: \"Absolutely. You can cancel your subscription at any time from your dashboard.\" }\n      ];\n      for (const item of items) {\n        const div = document.createElement(\"div\");\n        div.style.cssText = \"background:#16181d;border-radius:8px;padding:16px;margin-bottom:16px;border:1px solid #2d3340\";\n        const q = document.createElement(\"div\");\n        q.style.cssText = \"font-weight:600;margin:0 0 8px;color:#f4f6f8\";\n        const a = document.createElement(\"div\");\n        a.style.cssText = \"margin:0;color:#a1a1aa\";\n        a.textContent = item.a;\n        div.append(q, a);\n        s.append(div);\n      }\n      return s;\n    },\n    cta() {\n      const s = document.createElement(\"section\");\n      s.style.cssText = \"padding:48px 24px;text-align:center\";\n      const b = document.createElement(\"button\");\n      b.style.cssText = \"font-size:16px;padding:12px 28px;border-radius:8px;border:0;background:#2a5bd7;color:#fff;cursor:pointer\";\n      b.textContent = \"Get Started Today\";\n      s.append(b);\n      return s;\n    },\n  };\n  for (const kind of sections) page.append(builders[kind]());\n  root.append(page);\n}";
+    const CAP_SNAPSHOT = {"landing.content":{"name":"Lumen Notes","tagline":"Capture ideas the moment they spark — organized for you, automatically.","features":[{"id":"capture","title":"Instant Capture","body":"One keystroke from anywhere. Your thought is saved before it fades."},{"id":"organize","title":"Auto Organize","body":"Notes cluster themselves by topic — no folders to maintain."},{"id":"recall","title":"Total Recall","body":"Search by meaning, not keywords. Find the note you half-remember."}],"cta":"Start Free Trial"}};
+    const api = {
+      invoke: async (name) => {
+        if (!(name in CAP_SNAPSHOT)) throw new Error("capability not in snapshot: " + name);
+        return structuredClone(CAP_SNAPSHOT[name]);
+      },
+    };
+    try {
+      // data: URL import — blob: 과 달리 file:// 로 연 자립형 페이지에서도 동작.
+      const url = "data:text/javascript," + encodeURIComponent(ARTIFACT_SOURCE);
+      const { default: mount } = await import(url);
+      await mount(document.getElementById("root"), api);
+    } catch (err) {
+      const el = document.getElementById("error");
+      el.hidden = false;
+      el.textContent = "render failed: " + (err?.stack ?? err);
+    }
+  </script>
+</body>
+</html>

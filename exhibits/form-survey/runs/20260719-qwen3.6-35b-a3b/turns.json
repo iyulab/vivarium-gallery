@@ -1,0 +1,139 @@
+{
+  "history": {
+    "session": {
+      "sessionId": "gallery:form-survey",
+      "turns": 4,
+      "provider": "gpustack:qwen3.6-35b-a3b",
+      "strategy": "plan-then-generate@0",
+      "knowledgeSources": [
+        "form-survey-catalog"
+      ]
+    },
+    "history": [
+      {
+        "turn": 1,
+        "intent": "설문에 질문 2개를 추가해줘: 이메일 입력 질문(연락 받을 이메일, 선택 입력)과 추천 의향 NPS 척도 질문(필수). id 규칙(q3, q4)을 따라 총 4문항으로.",
+        "status": "validated",
+        "fingerprint": "sha256:977d2a529194f820760c4409fd9a6121c2fce06039632eeca7fbddbfbb7def61",
+        "attempts": 1
+      },
+      {
+        "turn": 2,
+        "intent": "서술형 질문(What should we improve first?)을 삭제해줘. 다른 질문과 제출 흐름은 그대로.",
+        "status": "validated",
+        "fingerprint": "sha256:01d15373e0c850cc547d5ff576c2d383078adefb6163fac0c6842feb1f74a935",
+        "attempts": 1
+      },
+      {
+        "turn": 3,
+        "intent": "남아 있는 모든 질문을 필수(required)로 일괄 전환해줘. 라벨의 별표 규칙은 유지.",
+        "status": "validated",
+        "fingerprint": "sha256:5142af2a5f533366cb11e291b88c23f2a1463243672db0dd8fac73ffe2b5c593",
+        "attempts": 1
+      },
+      {
+        "turn": 4,
+        "intent": "사용자에게 보이는 카피 전부(제목·질문 라벨·버튼·완료 메시지)를 한국어로 바꿔줘. id/name/type 은 절대 바꾸지 마.",
+        "status": "validated",
+        "fingerprint": "sha256:fa3cfda30a8ea9b46d3b8721131580ac1bd928c7bcb72481e739cddd506c08a6",
+        "attempts": 1
+      }
+    ]
+  },
+  "metrics": {
+    "turns": [
+      {
+        "turn": 1,
+        "endpoint": "session",
+        "status": "validated",
+        "latencyMs": 167807,
+        "attempts": 1,
+        "artifactBytes": 3563,
+        "artifactLines": 73,
+        "providerCalls": [
+          {
+            "latencyMs": 34914,
+            "inputTokens": 450,
+            "outputTokens": 1988
+          },
+          {
+            "latencyMs": 132890,
+            "inputTokens": 1261,
+            "outputTokens": 7563
+          }
+        ],
+        "inputTokens": 1711,
+        "outputTokens": 9551
+      },
+      {
+        "turn": 2,
+        "endpoint": "refine",
+        "status": "validated",
+        "latencyMs": 112926,
+        "attempts": 1,
+        "artifactBytes": 3474,
+        "artifactLines": 72,
+        "providerCalls": [
+          {
+            "latencyMs": 28973,
+            "inputTokens": 1023,
+            "outputTokens": 1621
+          },
+          {
+            "latencyMs": 83953,
+            "inputTokens": 1328,
+            "outputTokens": 4794
+          }
+        ],
+        "inputTokens": 2351,
+        "outputTokens": 6415
+      },
+      {
+        "turn": 3,
+        "endpoint": "refine",
+        "status": "validated",
+        "latencyMs": 213791,
+        "attempts": 1,
+        "artifactBytes": 3578,
+        "artifactLines": 76,
+        "providerCalls": [
+          {
+            "latencyMs": 28815,
+            "inputTokens": 827,
+            "outputTokens": 1587
+          },
+          {
+            "latencyMs": 184976,
+            "inputTokens": 1310,
+            "outputTokens": 10530
+          }
+        ],
+        "inputTokens": 2137,
+        "outputTokens": 12117
+      },
+      {
+        "turn": 4,
+        "endpoint": "refine",
+        "status": "validated",
+        "latencyMs": 166767,
+        "attempts": 1,
+        "artifactBytes": 3639,
+        "artifactLines": 76,
+        "providerCalls": [
+          {
+            "latencyMs": 30079,
+            "inputTokens": 790,
+            "outputTokens": 1647
+          },
+          {
+            "latencyMs": 136687,
+            "inputTokens": 1317,
+            "outputTokens": 7870
+          }
+        ],
+        "inputTokens": 2107,
+        "outputTokens": 9517
+      }
+    ]
+  }
+}

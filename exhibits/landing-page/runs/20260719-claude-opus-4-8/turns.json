@@ -1,0 +1,139 @@
+{
+  "history": {
+    "session": {
+      "sessionId": "gallery:landing-page",
+      "turns": 4,
+      "provider": "anthropic:claude-opus-4-8",
+      "strategy": "plan-then-generate@0",
+      "knowledgeSources": [
+        "landing-page-catalog"
+      ]
+    },
+    "history": [
+      {
+        "turn": 1,
+        "intent": "CTA 섹션 앞에 FAQ 섹션을 추가해줘: 질문 3개(요금은 얼마인가, 데이터를 가져올 수 있나, 언제든 취소 가능한가)와 각 답을 접힘 없이 나열. 하우스 디자인 규칙(영문 카피·인라인 스타일·960px 폭)을 따라줘.",
+        "status": "validated",
+        "fingerprint": "sha256:7d6df68f2234d34b76c75ca49397a43a6adcc4da40839c15a77be2198de1c75c",
+        "attempts": 1
+      },
+      {
+        "turn": 2,
+        "intent": "CTA 버튼 문구만 'Get Started Today'로 바꿔줘. 다른 것은 전부 그대로 둬.",
+        "status": "validated",
+        "fingerprint": "sha256:4b49e05c6957773c167db0fcfac628fb740512270181c26374113c50c36ec4f2",
+        "attempts": 1
+      },
+      {
+        "turn": 3,
+        "intent": "페이지 전체를 다크 테마로 전환해줘: 페이지 배경 #16181d, 본문 잉크 #f4f6f8, 보조 텍스트는 밝은 회색 계열, 카드 테두리는 어두운 회색, 액센트 #2a5bd7 유지. 구조와 카피는 그대로.",
+        "status": "validated",
+        "fingerprint": "sha256:a8babc01648fa99bf8ccb33e7c9d8e7a61404a62abe2866355c1bce47b7859bf",
+        "attempts": 1
+      },
+      {
+        "turn": 4,
+        "intent": "기능 그리드 섹션을 FAQ 섹션 뒤로 이동해줘. 각 섹션의 내용은 그대로.",
+        "status": "validated",
+        "fingerprint": "sha256:d2ff4b315d6d54acad35183bd088502caded16779ec3b80eb6a83a0e87417c12",
+        "attempts": 1
+      }
+    ]
+  },
+  "metrics": {
+    "turns": [
+      {
+        "turn": 1,
+        "endpoint": "session",
+        "status": "validated",
+        "latencyMs": 32915,
+        "attempts": 1,
+        "artifactBytes": 3474,
+        "artifactLines": 79,
+        "providerCalls": [
+          {
+            "latencyMs": 13939,
+            "inputTokens": 814,
+            "outputTokens": 895
+          },
+          {
+            "latencyMs": 18973,
+            "inputTokens": 1676,
+            "outputTokens": 1972
+          }
+        ],
+        "inputTokens": 2490,
+        "outputTokens": 2867
+      },
+      {
+        "turn": 2,
+        "endpoint": "refine",
+        "status": "validated",
+        "latencyMs": 24704,
+        "attempts": 1,
+        "artifactBytes": 3482,
+        "artifactLines": 79,
+        "providerCalls": [
+          {
+            "latencyMs": 8652,
+            "inputTokens": 1777,
+            "outputTokens": 477
+          },
+          {
+            "latencyMs": 16052,
+            "inputTokens": 1783,
+            "outputTokens": 1773
+          }
+        ],
+        "inputTokens": 3560,
+        "outputTokens": 2250
+      },
+      {
+        "turn": 3,
+        "endpoint": "refine",
+        "status": "validated",
+        "latencyMs": 29941,
+        "attempts": 1,
+        "artifactBytes": 3488,
+        "artifactLines": 79,
+        "providerCalls": [
+          {
+            "latencyMs": 9943,
+            "inputTokens": 1304,
+            "outputTokens": 636
+          },
+          {
+            "latencyMs": 19998,
+            "inputTokens": 2027,
+            "outputTokens": 2053
+          }
+        ],
+        "inputTokens": 3331,
+        "outputTokens": 2689
+      },
+      {
+        "turn": 4,
+        "endpoint": "refine",
+        "status": "validated",
+        "latencyMs": 22919,
+        "attempts": 1,
+        "artifactBytes": 3488,
+        "artifactLines": 79,
+        "providerCalls": [
+          {
+            "latencyMs": 6635,
+            "inputTokens": 1604,
+            "outputTokens": 386
+          },
+          {
+            "latencyMs": 16283,
+            "inputTokens": 1874,
+            "outputTokens": 1761
+          }
+        ],
+        "inputTokens": 3478,
+        "outputTokens": 2147
+      }
+    ]
+  }
+}

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>vivarium gallery</title>
+  <link rel="icon" href="data:," />
+  <script type="importmap">
+{ "imports": { "@vivariumjs/runtime": "/node_modules/@vivariumjs/runtime/dist/index.js" } }
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 1rem;
+      background: #f6f7f9;
+      color: #1c1f24;
+    }
+    h1 { font-size: 1.1rem; margin: 0 0 0.75rem; }
+    h2 { font-size: 0.85rem; margin: 0 0 0.5rem; color: #444; text-transform: uppercase; letter-spacing: 0.03em; }
+    .layout { display: flex; gap: 1rem; align-items: flex-start; }
+    #canvas-pane {
+      flex: 1 1 auto;
+      background: #fff;
+      border: 1px solid #d8dbe0;
+      border-radius: 8px;
+      padding: 0.75rem;
+      min-width: 0;
+    }
+    /* FRICTION-20260717-canvas-fixed-height-overflow fix: viewport-relative
+       height, sandbox iframe fills it — the sandbox's own scrollbar is the
+       single scroll surface. FRICTION-20260718-canvas-height-vs-long-dashboard:
+       user-resizable (native drag handle) for reviewing long content. */
+    #canvas { height: min(70vh, 640px); border: 1px dashed #c3c7cf; border-radius: 6px; resize: vertical; overflow: hidden; }
+    #canvas iframe, #preview iframe { display: block; width: 100%; height: 100%; border: 0; }
+    #panel {
+      flex: 0 0 360px;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    #panel section {
+      background: #fff;
+      border: 1px solid #d8dbe0;
+      border-radius: 8px;
+      padding: 0.75rem;
+    }
+    #chat-input {
+      width: 100%;
+      min-height: 60px;
+      resize: vertical;
+      font-family: inherit;
+      font-size: 0.9rem;
+      padding: 0.4rem;
+      border: 1px solid #c3c7cf;
+      border-radius: 6px;
+    }
+    #selection-info { font-size: 0.8rem; color: #666; margin: 0.4rem 0; }
+    button {
+      cursor: pointer;
+      border: 1px solid #c3c7cf;
+      background: #fff;
+      border-radius: 6px;
+      padding: 0.4rem 0.8rem;
+      font-size: 0.85rem;
+      margin-right: 0.4rem;
+    }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    #send-btn, #approve-btn { background: #1c6fdb; color: #fff; border-color: #1c6fdb; }
+    #approve-btn:disabled, #send-btn:disabled { background: #a9c3e6; border-color: #a9c3e6; }
+    #reject-btn { background: #d64545; color: #fff; border-color: #d64545; }
+    #reject-btn:disabled { background: #e6a9a9; border-color: #e6a9a9; }
+    #preview { height: 260px; border: 1px dashed #c3c7cf; border-radius: 6px; margin-bottom: 0.5rem; }
+    #preview-section[hidden] { display: none; }
+    #ledger-list { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow-y: auto; font-size: 0.78rem; font-family: ui-monospace, Consolas, monospace; }
+    #ledger-list li { padding: 0.2rem 0; border-bottom: 1px solid #eee; }
+    #status { font-size: 0.8rem; color: #444; }
+    #status.error { color: #d64545; font-weight: 600; }
+    #refusal-detail h3 { font-size: 0.78rem; margin: 0.5rem 0 0.2rem; color: #a33; text-transform: none; letter-spacing: 0; }
+    #refusal-detail pre { white-space: pre-wrap; font-size: 0.75rem; background: #fdf3f3; border: 1px solid #eed3d3; border-radius: 6px; padding: 0.4rem; margin: 0; max-height: 220px; overflow-y: auto; }
+  </style>
+</head>
+<body>
+  <h1 id="exhibit-title">vivarium gallery — 로드 중…</h1>
+  <div class="layout">
+    <section id="canvas-pane">
+      <h2>본 캔버스</h2>
+      <div id="canvas"></div>
+    </section>
+    <aside id="panel">
+      <section id="chat-section">
+        <h2>채팅</h2>
+        <div id="selection-info">선택 없음</div>
+        <button id="clear-selection-btn" hidden>선택 해제</button>
+        <textarea id="chat-input" placeholder="예: 카드 하나 추가해줘"></textarea>
+        <div style="margin-top: 0.5rem;">
+          <button id="send-btn">전송</button>
+        </div>
+        <div id="refusal-detail" hidden></div>
+      </section>
+      <section id="preview-section" hidden>
+        <h2>제안 프리뷰</h2>
+        <div id="preview"></div>
+        <button id="approve-btn">승인</button>
+        <button id="reject-btn">거부</button>
+      </section>
+      <section id="rollback-section">
+        <h2>롤백</h2>
+        <button id="rollback-btn" disabled>직전 적용 롤백</button>
+      </section>
+      <section id="ledger-section">
+        <h2>이력 (ledger)</h2>
+        <ul id="ledger-list"></ul>
+      </section>
+      <section id="status-section">
+        <h2>상태</h2>
+        <div id="status">초기화 대기 중…</div>
+      </section>
+    </aside>
+  </div>
+  <script type="module" src="./app.ts"></script>
+</body>
+</html>

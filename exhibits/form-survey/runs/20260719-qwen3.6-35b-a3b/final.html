@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>form-survey · 20260719-qwen3.6-35b-a3b — vivarium gallery run</title>
+  <link rel="icon" href="data:," />
+  <style>
+    body { font-family: -apple-system, "Segoe UI", sans-serif; margin: 0; background: #f6f7f9; color: #1c1f24; }
+    header { padding: 0.8rem 1rem; font-size: 0.85rem; border-bottom: 1px solid #d8dbe0; background: #fff; }
+    header b { font-size: 1rem; }
+    header .note { color: #666; }
+    #root { padding: 0.5rem; }
+    #error { color: #d64545; padding: 1rem; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <header>
+    <b>제품 피드백 설문</b> — run 20260719-qwen3.6-35b-a3b
+    <div class="note">자립형 아카이브 뷰어 · capability 값은 아카이브 시점 스냅샷 · 질문 카드·제출 흐름을 갖춘 설문 폼을 채팅으로 변형하는 전시물</div>
+  </header>
+  <div id="root"></div>
+  <div id="error" hidden></div>
+  <script type="module">
+    const ARTIFACT_SOURCE = "export default async function mount(root, api) {\n  const questions = [\n    { id: \"q1\", label: \"제품에 대한 만족도는 어떠신가요?\", type: \"scale\", required: true },\n    { id: \"q3\", label: \"연락처 이메일\", type: \"email\", required: true },\n    { id: \"q4\", label: \"지인들에게 추천할 의향이 있으신가요?\", type: \"nps\", required: true },\n  ];\n  root.innerHTML = \"\";\n  const form = document.createElement(\"form\");\n  form.style.cssText = \"font-family:system-ui,sans-serif;color:#1d2129;max-width:640px;margin:0 auto;padding:24px;display:flex;flex-direction:column;gap:16px\";\n  const title = document.createElement(\"h1\");\n  title.style.cssText = \"font-size:22px;margin:0\";\n  title.textContent = \"제품 피드백 설문\";\n  form.append(title);\n  for (const q of questions) {\n    const card = document.createElement(\"section\");\n    card.style.cssText = \"font-family: system-ui, sans-serif; color: #1d2129; border: 1px solid #c8cdd6; border-radius: 10px; padding: 16px; margin-bottom: 16px;\";\n    const label = document.createElement(\"label\");\n    label.style.cssText = \"display:block;font-size:15px;font-weight:600;margin-bottom:8px\";\n    label.textContent = q.label + \" *\";\n    label.htmlFor = q.id;\n    card.append(label);\n    if (q.type === \"scale\" || q.type === \"nps\") {\n      const row = document.createElement(\"div\");\n      row.style.cssText = \"display:flex;flex-wrap:wrap;gap:8px\";\n      const start = q.type === \"nps\" ? 0 : 1;\n      const end = q.type === \"nps\" ? 10 : 5;\n      for (let v = start; v \u003c= end; v++) {\n        const opt = document.createElement(\"label\");\n        opt.style.cssText = \"display:flex;align-items:center;gap:4px;font-size:14px\";\n        const radio = document.createElement(\"input\");\n        radio.type = \"radio\";\n        radio.name = q.id;\n        radio.value = String(v);\n        radio.id = `${q.id}-${v}`;\n        radio.required = true;\n        opt.htmlFor = radio.id;\n        opt.append(radio, document.createTextNode(String(v)));\n        row.append(opt);\n      }\n      card.append(row);\n    } else if (q.type === \"email\") {\n      const input = document.createElement(\"input\");\n      input.type = \"email\";\n      input.id = q.id;\n      input.name = q.id;\n      input.placeholder = \"name@example.com\";\n      input.required = true;\n      input.style.cssText = \"width:100%;border:1px solid #c8cdd6;border-radius:6px;padding:8px;font-family:inherit;font-size:14px\";\n      card.append(input);\n    } else {\n      const input = document.createElement(\"textarea\");\n      input.id = q.id;\n      input.name = q.id;\n      input.rows = 3;\n      input.required = true;\n      input.style.cssText = \"width:100%;border:1px solid #c8cdd6;border-radius:6px;padding:8px;font-family:inherit;font-size:14px\";\n      card.append(input);\n    }\n    form.append(card);\n  }\n  const submit = document.createElement(\"button\");\n  submit.type = \"submit\";\n  submit.style.cssText = \"align-self:flex-start;font-size:15px;padding:10px 24px;border-radius:8px;border:0;background:#2a5bd7;color:#fff;cursor:pointer\";\n  submit.textContent = \"제출하기\";\n  const status = document.createElement(\"p\");\n  status.style.cssText = \"font-size:14px;color:#3c7a3c;margin:0\";\n  form.append(submit, status);\n  form.addEventListener(\"submit\", async (event) => {\n    event.preventDefault();\n    if (!form.checkValidity()) return;\n    const answers = Object.fromEntries(new FormData(form).entries());\n    const result = await api.invoke(\"survey.submit\", { answers });\n    status.textContent = result.accepted ? \"감사합니다. 피드백이 기록되었습니다.\" : \"제출에 실패했습니다.\";\n  });\n  root.append(form);\n}";
+    const CAP_SNAPSHOT = {"survey.submit":{"accepted":true}};
+    const api = {
+      invoke: async (name) => {
+        if (!(name in CAP_SNAPSHOT)) throw new Error("capability not in snapshot: " + name);
+        return structuredClone(CAP_SNAPSHOT[name]);
+      },
+    };
+    try {
+      // data: URL import — blob: 과 달리 file:// 로 연 자립형 페이지에서도 동작.
+      const url = "data:text/javascript," + encodeURIComponent(ARTIFACT_SOURCE);
+      const { default: mount } = await import(url);
+      await mount(document.getElementById("root"), api);
+    } catch (err) {
+      const el = document.getElementById("error");
+      el.hidden = false;
+      el.textContent = "render failed: " + (err?.stack ?? err);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "gate": "rollback-v1",
+  "target": "landing-page",
+  "sessionId": "1ea0cdd1b375",
+  "fingerprint": "sha256:d2ff4b315d6d54acad35183bd088502caded16779ec3b80eb6a83a0e87417c12",
+  "checks": {
+    "rolledBack": true,
+    "byteIdentical": true,
+    "lineageConsistent": true,
+    "reapplied": true
+  },
+  "detail": {},
+  "reappliedSessionId": "e8dbb41b8098",
+  "passed": true,
+  "verifiedAt": "2026-07-19T07:05:02.560Z"
+}

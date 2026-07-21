@@ -1,0 +1,16 @@
+{
+  "gate": "rollback-v1",
+  "target": "form-survey",
+  "sessionId": "27cf3a6ae2bb",
+  "fingerprint": "sha256:fa3cfda30a8ea9b46d3b8721131580ac1bd928c7bcb72481e739cddd506c08a6",
+  "checks": {
+    "rolledBack": true,
+    "byteIdentical": true,
+    "lineageConsistent": true,
+    "reapplied": true
+  },
+  "detail": {},
+  "reappliedSessionId": "250d75a9cfe8",
+  "passed": true,
+  "verifiedAt": "2026-07-19T07:34:46.858Z"
+}

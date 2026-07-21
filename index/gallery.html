@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>vivarium gallery</title>
+  <link rel="icon" href="data:," />
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, "Segoe UI", sans-serif; margin: 0; padding: 2rem 1.5rem; background: #f6f7f9; color: #1c1f24; max-width: 1080px; margin-inline: auto; }
+    h1 { font-size: 1.4rem; margin: 0 0 0.3rem; }
+    .sub { color: #57606e; font-size: 0.9rem; margin: 0 0 1.5rem; }
+    .exhibit { background: #fff; border: 1px solid #d8dbe0; border-radius: 10px; padding: 1rem 1.2rem; margin-bottom: 1.2rem; }
+    .exhibit h2 { font-size: 1.05rem; margin: 0 0 0.3rem; }
+    .exhibit h2 code { font-size: 0.75rem; color: #57606e; font-weight: 400; }
+    .exhibit > p { font-size: 0.85rem; color: #454c58; margin: 0 0 0.8rem; }
+    .runs { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0.8rem; }
+    .run { border: 1px solid #e3e6ec; border-radius: 8px; overflow: hidden; }
+    .run img { display: block; width: 100%; aspect-ratio: 16/10; object-fit: cover; object-position: top; border-bottom: 1px solid #e3e6ec; }
+    .run-meta { padding: 0.6rem 0.7rem; font-size: 0.78rem; display: flex; flex-direction: column; gap: 0.25rem; }
+    .badge { align-self: flex-start; border-radius: 999px; padding: 0.05rem 0.5rem; font-weight: 600; }
+    .badge.pass { background: #e2f3e2; color: #1c6b1c; }
+    .badge.fail { background: #fbe4e4; color: #b02a2a; }
+    .badge.none { background: #eceef1; color: #57606e; }
+    .run-meta nav a { color: #2a5bd7; text-decoration: none; }
+    .empty { font-size: 0.8rem; color: #8a919c; }
+    footer { font-size: 0.75rem; color: #8a919c; margin-top: 1.5rem; }
+  </style>
+</head>
+<body>
+  <h1>vivarium gallery</h1>
+  <p class="sub">채팅 지시로 런타임 UI 를 변경·롤백한 실행들의 아카이브 — 각 run 의 최종 결과는 서버·키 없이 열람 가능한 자립형 페이지입니다.</p>
+<section class="exhibit">
+  <h2>커머스 분석 대시보드 <code>dashboard</code></h2>
+  <p>채팅으로 대시보드 위젯 카드를 구축·변형하는 전시물 — dashboard-builder(M1~M8) 이식본 — <a href="../exhibits/dashboard/scenario.md">scenario.md</a></p>
+  <div class="runs"><article class="run">
+  <a href="../exhibits/dashboard/runs/20260719-qwen3.6-35b-a3b/final.html"><img src="../exhibits/dashboard/runs/20260719-qwen3.6-35b-a3b/screenshot.png" alt="20260719-qwen3.6-35b-a3b screenshot" loading="lazy" /></a>
+  <div class="run-meta">
+    <b>20260719-qwen3.6-35b-a3b</b>
+    <span class="badge pass">롤백 게이트 PASS</span>
+    <span>3턴</span>
+    <nav><a href="../exhibits/dashboard/runs/20260719-qwen3.6-35b-a3b/final.html">최종 결과</a> · <a href="../exhibits/dashboard/runs/20260719-qwen3.6-35b-a3b/RUN.md">RUN.md</a> · <a href="../exhibits/dashboard/runs/20260719-qwen3.6-35b-a3b/turns.json">turns</a></nav>
+  </div>
+</article>
+<article class="run">
+  
+  <div class="run-meta">
+    <b>20260719-claude-opus-4-8-agent0.1.1</b>
+    <span class="badge pass">롤백 게이트 PASS</span>
+    <span>3턴</span>
+    <nav><a href="../exhibits/dashboard/runs/20260719-claude-opus-4-8-agent0.1.1/final.html">최종 결과</a> · <a href="../exhibits/dashboard/runs/20260719-claude-opus-4-8-agent0.1.1/RUN.md">RUN.md</a> · <a href="../exhibits/dashboard/runs/20260719-claude-opus-4-8-agent0.1.1/turns.json">turns</a></nav>
+  </div>
+</article>
+<article class="run">
+  <a href="../exhibits/dashboard/runs/20260719-claude-opus-4-8-agent0.0.3/final.html"><img src="../exhibits/dashboard/runs/20260719-claude-opus-4-8-agent0.0.3/screenshot.png" alt="20260719-claude-opus-4-8-agent0.0.3 screenshot" loading="lazy" /></a>
+  <div class="run-meta">
+    <b>20260719-claude-opus-4-8-agent0.0.3</b>
+    <span class="badge pass">롤백 게이트 PASS</span>
+    <span>3턴</span>
+    <nav><a href="../exhibits/dashboard/runs/20260719-claude-opus-4-8-agent0.0.3/final.html">최종 결과</a> · <a href="../exhibits/dashboard/runs/20260719-claude-opus-4-8-agent0.0.3/RUN.md">RUN.md</a> · <a href="../exhibits/dashboard/runs/20260719-claude-opus-4-8-agent0.0.3/turns.json">turns</a></nav>
+  </div>
+</article>
+<article class="run">
+  <a href="../exhibits/dashboard/runs/20260719-claude-opus-4-8/final.html"><img src="../exhibits/dashboard/runs/20260719-claude-opus-4-8/screenshot.png" alt="20260719-claude-opus-4-8 screenshot" loading="lazy" /></a>
+  <div class="run-meta">
+    <b>20260719-claude-opus-4-8</b>
+    <span class="badge pass">롤백 게이트 PASS</span>
+    <span>4턴</span>
+    <nav><a href="../exhibits/dashboard/runs/20260719-claude-opus-4-8/final.html">최종 결과</a> · <a href="../exhibits/dashboard/runs/20260719-claude-opus-4-8/RUN.md">RUN.md</a> · <a href="../exhibits/dashboard/runs/20260719-claude-opus-4-8/turns.json">turns</a></nav>
+  </div>
+</article></div>
+</section>
+<section class="exhibit">
+  <h2>제품 피드백 설문 <code>form-survey</code></h2>
+  <p>질문 카드·제출 흐름을 갖춘 설문 폼을 채팅으로 변형하는 전시물 — <a href="../exhibits/form-survey/scenario.md">scenario.md</a></p>
+  <div class="runs"><article class="run">
+  <a href="../exhibits/form-survey/runs/20260719-qwen3.6-35b-a3b/final.html"><img src="../exhibits/form-survey/runs/20260719-qwen3.6-35b-a3b/screenshot.png" alt="20260719-qwen3.6-35b-a3b screenshot" loading="lazy" /></a>
+  <div class="run-meta">
+    <b>20260719-qwen3.6-35b-a3b</b>
+    <span class="badge pass">롤백 게이트 PASS</span>
+    <span>4턴</span>
+    <nav><a href="../exhibits/form-survey/runs/20260719-qwen3.6-35b-a3b/final.html">최종 결과</a> · <a href="../exhibits/form-survey/runs/20260719-qwen3.6-35b-a3b/RUN.md">RUN.md</a> · <a href="../exhibits/form-survey/runs/20260719-qwen3.6-35b-a3b/turns.json">turns</a></nav>
+  </div>
+</article>
+<article class="run">
+  <a href="../exhibits/form-survey/runs/20260719-claude-opus-4-8/final.html"><img src="../exhibits/form-survey/runs/20260719-claude-opus-4-8/screenshot.png" alt="20260719-claude-opus-4-8 screenshot" loading="lazy" /></a>
+  <div class="run-meta">
+    <b>20260719-claude-opus-4-8</b>
+    <span class="badge pass">롤백 게이트 PASS</span>
+    <span>4턴</span>
+    <nav><a href="../exhibits/form-survey/runs/20260719-claude-opus-4-8/final.html">최종 결과</a> · <a href="../exhibits/form-survey/runs/20260719-claude-opus-4-8/RUN.md">RUN.md</a> · <a href="../exhibits/form-survey/runs/20260719-claude-opus-4-8/turns.json">turns</a></nav>
+  </div>
+</article></div>
+</section>
+<section class="exhibit">
+  <h2>제품 랜딩 페이지 <code>landing-page</code></h2>
+  <p>히어로·기능 그리드·CTA로 구성된 랜딩 페이지를 채팅으로 변형하는 전시물 — <a href="../exhibits/landing-page/scenario.md">scenario.md</a></p>
+  <div class="runs"><article class="run">
+  <a href="../exhibits/landing-page/runs/20260719-qwen3.6-35b-a3b/final.html"><img src="../exhibits/landing-page/runs/20260719-qwen3.6-35b-a3b/screenshot.png" alt="20260719-qwen3.6-35b-a3b screenshot" loading="lazy" /></a>
+  <div class="run-meta">
+    <b>20260719-qwen3.6-35b-a3b</b>
+    <span class="badge pass">롤백 게이트 PASS</span>
+    <span>4턴</span>
+    <nav><a href="../exhibits/landing-page/runs/20260719-qwen3.6-35b-a3b/final.html">최종 결과</a> · <a href="../exhibits/landing-page/runs/20260719-qwen3.6-35b-a3b/RUN.md">RUN.md</a> · <a href="../exhibits/landing-page/runs/20260719-qwen3.6-35b-a3b/turns.json">turns</a></nav>
+  </div>
+</article>
+<article class="run">
+  <a href="../exhibits/landing-page/runs/20260719-claude-opus-4-8/final.html"><img src="../exhibits/landing-page/runs/20260719-claude-opus-4-8/screenshot.png" alt="20260719-claude-opus-4-8 screenshot" loading="lazy" /></a>
+  <div class="run-meta">
+    <b>20260719-claude-opus-4-8</b>
+    <span class="badge pass">롤백 게이트 PASS</span>
+    <span>4턴</span>
+    <nav><a href="../exhibits/landing-page/runs/20260719-claude-opus-4-8/final.html">최종 결과</a> · <a href="../exhibits/landing-page/runs/20260719-claude-opus-4-8/RUN.md">RUN.md</a> · <a href="../exhibits/landing-page/runs/20260719-claude-opus-4-8/turns.json">turns</a></nav>
+  </div>
+</article></div>
+</section>
+  <footer>생성: build-index.ts · 2026-07-21T09:58:29.367Z</footer>
+</body>
+</html>

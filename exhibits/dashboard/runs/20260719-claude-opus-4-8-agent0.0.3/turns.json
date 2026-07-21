@@ -1,0 +1,114 @@
+{
+  "history": {
+    "session": {
+      "sessionId": "gallery:dashboard",
+      "turns": 3,
+      "provider": "anthropic:claude-opus-4-8",
+      "strategy": "plan-then-generate@0",
+      "knowledgeSources": [
+        "dashboard-sample-catalog"
+      ]
+    },
+    "history": [
+      {
+        "turn": 1,
+        "intent": "dashboard.dataset의 데이터로 대시보드를 구성해줘: summary 6개 지표 전부의 KPI 타일 줄, 매출 추이(revenueTrend) 라인 차트, Top Products 표. 하우스 디자인 시스템을 따라줘.",
+        "status": "validated",
+        "fingerprint": "sha256:d42ad4141737049a9fff0da2bb5cd8881e5c87f1c8c328f5398cf792ca3287de",
+        "attempts": 1
+      },
+      {
+        "turn": 2,
+        "intent": "Top Products 표의 제목 텍스트만 '상위 제품'으로 바꿔줘. 다른 것은 전부 그대로 둬.",
+        "status": "validated",
+        "fingerprint": "sha256:81a017ad33e288bedd14be8b4b7266accc1a9a765548beeab26bf118f3bb2f8e",
+        "attempts": 2
+      },
+      {
+        "turn": 3,
+        "intent": "모든 KPI 타일의 금액 표기를 compact 형식($128.4K)이 아니라 전체 자릿수($128,400)로 일괄로 바꿔줘. 차트와 표는 그대로 둬.",
+        "status": "validated",
+        "fingerprint": "sha256:0933cfc1ee0cbbaa3f65f8a5682b3e837ed0bd398a4e4ec6d19e6b13c94d472c",
+        "attempts": 1
+      }
+    ]
+  },
+  "metrics": {
+    "turns": [
+      {
+        "turn": 1,
+        "endpoint": "session",
+        "status": "validated",
+        "latencyMs": 71708,
+        "attempts": 1,
+        "artifactBytes": 10829,
+        "artifactLines": 281,
+        "providerCalls": [
+          {
+            "latencyMs": 14917,
+            "inputTokens": 1849,
+            "outputTokens": 981
+          },
+          {
+            "latencyMs": 56788,
+            "inputTokens": 1674,
+            "outputTokens": 6289
+          }
+        ],
+        "inputTokens": 3523,
+        "outputTokens": 7270
+      },
+      {
+        "turn": 2,
+        "endpoint": "refine",
+        "status": "validated",
+        "latencyMs": 68166,
+        "attempts": 2,
+        "artifactBytes": 10842,
+        "artifactLines": 281,
+        "providerCalls": [
+          {
+            "latencyMs": 10840,
+            "inputTokens": 3166,
+            "outputTokens": 615
+          },
+          {
+            "latencyMs": 3702,
+            "inputTokens": 5507,
+            "outputTokens": 167
+          },
+          {
+            "latencyMs": 53621,
+            "inputTokens": 5597,
+            "outputTokens": 6034
+          }
+        ],
+        "inputTokens": 14270,
+        "outputTokens": 6816
+      },
+      {
+        "turn": 3,
+        "endpoint": "refine",
+        "status": "validated",
+        "latencyMs": 63047,
+        "attempts": 1,
+        "artifactBytes": 11044,
+        "artifactLines": 287,
+        "providerCalls": [
+          {
+            "latencyMs": 9699,
+            "inputTokens": 2349,
+            "outputTokens": 636
+          },
+          {
+            "latencyMs": 53348,
+            "inputTokens": 5754,
+            "outputTokens": 6201
+          }
+        ],
+        "inputTokens": 8103,
+        "outputTokens": 6837
+      }
+    ]
+  }
+}

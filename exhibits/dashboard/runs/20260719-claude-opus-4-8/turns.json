@@ -1,0 +1,149 @@
+{
+  "history": {
+    "session": {
+      "sessionId": "gallery:dashboard",
+      "turns": 4,
+      "provider": "anthropic:claude-opus-4-8",
+      "strategy": "plan-then-generate@0",
+      "knowledgeSources": [
+        "dashboard-sample-catalog"
+      ]
+    },
+    "history": [
+      {
+        "turn": 1,
+        "intent": "dashboard.dataset의 데이터로 대시보드를 구성해줘: summary 6개 지표 전부의 KPI 타일 줄, 매출 추이(revenueTrend) 라인 차트, Top Products 표. 하우스 디자인 시스템을 따라줘.",
+        "status": "validated",
+        "fingerprint": "sha256:e7b8a486ecbb383c7c585d6701c48ea69c6be45024d018b4b8a5679617d9ddf8",
+        "attempts": 1
+      },
+      {
+        "turn": 2,
+        "intent": "Top Products 표의 제목 텍스트만 '상위 제품'으로 바꿔줘. 다른 것은 전부 그대로 둬.",
+        "status": "validated",
+        "fingerprint": "sha256:e8164f25fc5e8083cf226f4bd2a964bbb5d45de0adccebd4977e066dd4be5587",
+        "attempts": 2
+      },
+      {
+        "turn": 3,
+        "intent": "모든 KPI 타일의 금액 표기를 compact 형식($128.4K)이 아니라 전체 자릿수($128,400)로 일괄로 바꿔줘. 차트와 표는 그대로 둬.",
+        "status": "validated",
+        "fingerprint": "sha256:3d52904f89091fdd13ce141a54e5653e37d8956e970d68d9ec09ecb12aa37bb5",
+        "attempts": 1
+      },
+      {
+        "turn": 4,
+        "intent": "Top Products 표의 제목 텍스트만 '상위 제품'으로 바꿔줘. 다른 것은 전부 그대로 둬.",
+        "status": "validated",
+        "fingerprint": "sha256:e380d496ea127c423c5043a8a4f3bd378349f1ed56e900e7699d3eebf89be311",
+        "attempts": 2
+      }
+    ]
+  },
+  "metrics": {
+    "turns": [
+      {
+        "turn": 1,
+        "endpoint": "session",
+        "status": "validated",
+        "latencyMs": 69847,
+        "attempts": 1,
+        "artifactBytes": 10775,
+        "artifactLines": 268,
+        "providerCalls": [
+          {
+            "latencyMs": 12970,
+            "inputTokens": 1849,
+            "outputTokens": 921
+          },
+          {
+            "latencyMs": 56875,
+            "inputTokens": 1486,
+            "outputTokens": 6221
+          }
+        ],
+        "inputTokens": 3335,
+        "outputTokens": 7142
+      },
+      {
+        "turn": 2,
+        "endpoint": "refine",
+        "status": "validated",
+        "latencyMs": 68724,
+        "attempts": 2,
+        "artifactBytes": 10775,
+        "artifactLines": 268,
+        "providerCalls": [
+          {
+            "latencyMs": 9535,
+            "inputTokens": 3018,
+            "outputTokens": 509
+          },
+          {
+            "latencyMs": 1365,
+            "inputTokens": 5286,
+            "outputTokens": 30
+          },
+          {
+            "latencyMs": 57823,
+            "inputTokens": 5353,
+            "outputTokens": 6328
+          }
+        ],
+        "inputTokens": 13657,
+        "outputTokens": 6867
+      },
+      {
+        "turn": 3,
+        "endpoint": "refine",
+        "status": "validated",
+        "latencyMs": 61093,
+        "attempts": 1,
+        "artifactBytes": 10888,
+        "artifactLines": 269,
+        "providerCalls": [
+          {
+            "latencyMs": 10222,
+            "inputTokens": 2469,
+            "outputTokens": 665
+          },
+          {
+            "latencyMs": 50870,
+            "inputTokens": 5520,
+            "outputTokens": 5926
+          }
+        ],
+        "inputTokens": 7989,
+        "outputTokens": 6591
+      },
+      {
+        "turn": 4,
+        "endpoint": "refine",
+        "status": "validated",
+        "latencyMs": 65984,
+        "attempts": 2,
+        "artifactBytes": 10888,
+        "artifactLines": 269,
+        "providerCalls": [
+          {
+            "latencyMs": 8749,
+            "inputTokens": 2601,
+            "outputTokens": 509
+          },
+          {
+            "latencyMs": 1270,
+            "inputTokens": 5331,
+            "outputTokens": 30
+          },
+          {
+            "latencyMs": 55965,
+            "inputTokens": 5398,
+            "outputTokens": 6231
+          }
+        ],
+        "inputTokens": 13330,
+        "outputTokens": 6770
+      }
+    ]
+  }
+}
