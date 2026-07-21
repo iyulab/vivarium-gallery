@@ -1,0 +1,68 @@
+name: pages
+
+# Publishes the gallery — the run archive is the exhibit, so the point of this
+# repo is only half-realised while it has to be cloned to be looked at.
+#
+# The index is regenerated here rather than trusting the committed copy:
+# exhibits/ is the single source of truth, so a run added without re-running
+# build-index still shows up on the site.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "exhibits/**"
+      - "index/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; let a run in progress finish rather than cancelling
+# it, so a half-published site is never left behind.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Regenerate the index from exhibits/
+        run: node index/build-index.ts
+
+      # gallery.html links its runs as ../exhibits/... , so the directory
+      # shape has to survive into the site. The root redirect exists only so
+      # the bare Pages URL lands somewhere useful.
+      - name: Assemble the site
+        run: |
+          mkdir -p _site/index
+          cp index/gallery.html _site/index/gallery.html
+          cp -r exhibits _site/exhibits
+          touch _site/.nojekyll
+          cat > _site/index.html <<'HTML'
+          <!doctype html>
+          <meta charset="utf-8">
+          <title>vivarium-gallery</title>
+          <meta http-equiv="refresh" content="0; url=./index/gallery.html">
+          <link rel="canonical" href="./index/gallery.html">
+          <p><a href="./index/gallery.html">vivarium-gallery</a></p>
+          HTML
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+          retention-days: 1
+      - id: deploy
+        uses: actions/deploy-pages@v4
