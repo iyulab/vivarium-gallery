@@ -74,6 +74,12 @@ node host/smoke.ts        # 기대: smoke: 14/14 PASS (12 = 롤백 공통 게이
 # 3-facet 동반 변경 게이트 — 전제: 호스트 서버가 --exhibit inventory 로 기동
 node host/smoke-3facet.ts # 기대: smoke-3facet: 8/8 PASS
 
+# 거부 경로 게이트 — 같은 전제(--exhibit inventory)
+#   거부는 결함이 아니라 기능이다. 단언 1~3은 거부가 **일어나야** 통과하고,
+#   단언 5~6은 거부가 **일어나지 않는 것**을 기록한다(통과가 곧 결함 — 드리프트
+#   게이트는 changeset 이 선언한 facet 만 본다).
+node host/smoke-refusal.ts # 기대: smoke-refusal: 6/6 PASS
+
 # 소비 재현성 (레지스트리 신선도·클린룸 설치)
 node host/tools/verify-consumption.ts
 ```
