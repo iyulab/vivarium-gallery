@@ -113,10 +113,27 @@ async function main(): Promise<void> {
     if (typeof diff !== "string" || diff === "") {
       throw new Error(`changeset 의 UI 패치에 diff 가 없다(profile=${uiPatch.profile}) — 전제 붕괴`);
     }
+    // 검토 대상이 **편집**임을 구속한다. 생성(빈 base 로부터의 전체 추가)도 diff 로
+    // 렌더되므로, 크기를 세기만 하면 엉뚱한 전시물을 판정하면서도 통과한다 —
+    // 실제로 그런 통과가 오진 하나를 만들었다.
+    if (uiPatch.profile !== "verified-diff@0" || !uiPatch.baseFingerprint) {
+      throw new Error(
+        `검토 대상이 편집이 아니다(profile=${uiPatch.profile}, baseFingerprint=${uiPatch.baseFingerprint}) — ` +
+        "이 전시물의 변경은 열 하나 추가이고, 생성 diff 가 왔다면 잘못된 호스트·전시물을 보고 있다",
+      );
+    }
     const added = root.querySelectorAll(".diff-add").length;
     const removed = root.querySelectorAll(".diff-del").length;
-    if (added === 0 && removed === 0) throw new Error("diff 가 렌더됐으나 추가/삭제 줄이 하나도 표시되지 않았다");
-    ok(n, `UI 변경이 diff 로 표시된다 (추가 ${added}줄 · 삭제 ${removed}줄)`);
+    // scripted provider 라 제안이 결정적이므로 크기도 값으로 박는다. 전시물의
+    // 변경이 바뀌면 여기서 실패해야 한다 — 조용히 다른 것을 판정하느니 갱신을 요구한다.
+    const EXPECTED = { added: 1, removed: 0 };
+    if (added !== EXPECTED.added || removed !== EXPECTED.removed) {
+      throw new Error(
+        `예상: 추가 ${EXPECTED.added}줄·삭제 ${EXPECTED.removed}줄, 실제: 추가 ${added}줄·삭제 ${removed}줄 — ` +
+        "전시물의 변경이 바뀌었다면 이 기대값을 갱신할 것",
+      );
+    }
+    ok(n, `UI 변경이 **편집** diff 로 표시된다 (추가 ${added}줄 · 삭제 ${removed}줄)`);
   } catch (e) {
     fail(n, "UI 변경이 diff 로 표시된다", e);
   }
