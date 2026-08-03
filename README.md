@@ -71,6 +71,26 @@ open http://localhost:8890/host/index.html
 
 ## 검증 게이트
 
+**전부 한 번에 — 이것이 CI 가 돌리는 것과 같은 명령이다:**
+
+```bash
+node host/tools/run-gates.ts            # 기대: run-gates: 4/4 gates passed
+node host/tools/run-gates.ts --list     # 게이트 목록과 각자 필요한 전시물
+node host/tools/run-gates.ts --gate smoke-refusal   # 하나만
+```
+
+호스트 기동 순서·포트·전시물은 러너가 쥔다. 게이트가 실패하거나 호스트가 뜨지
+않으면 종료 코드가 0이 아니다(호스트 미기동은 **명시적으로** 실패한다 — 죽은
+호스트가 게이트의 엉뚱한 오류로 둔갑하지 않게).
+
+개별 실행이 필요할 때(디버깅·전제 확인)는 아래처럼 직접 돌릴 수 있다. 이때는
+전제(전시물·포트)를 직접 맞춰야 한다.
+
+> **알려진 것**: `smoke-review` 는 단독으로 돌릴 때와 앞선 게이트 뒤에 돌릴 때
+> **판정 대상이 다르다** — 전자는 생성 diff, 후자는 편집 diff 를 검토 화면에
+> 올린다. 단언은 양쪽 다 통과하므로 게이트는 이 차이를 말하지 않는다. 기전은
+> 아직 규명되지 않았다. 러너를 쓰면 항상 후자(전체 실행) 형태다.
+
 ```bash
 # 결정적 회귀 (scripted provider 필수 — MODEL_PROVIDER 미설정으로 서버 기동)
 node host/smoke.ts        # 기대: smoke: 14/14 PASS (12 = 롤백 공통 게이트,

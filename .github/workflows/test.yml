@@ -25,18 +25,18 @@ jobs:
           dotnet-version: "10.0.x"
       # No lockfile by design (consumption realism): every run resolves the
       # latest semver-compatible published packages. That IS the dogfooding —
-      # a break here means a published package broke its consumers.
+      # a break here means a published package broke its consumers. It is also
+      # why there is no dependency cache here: nothing stable to key one on,
+      # and a cache would defeat the point of resolving fresh.
       - name: Install from the registry
         run: npm install
-      - name: Start stage-host (8891) and the gallery host (8890)
-        run: |
-          dotnet run --project host/stage-host -- 8891 &
-          node host/server.ts 8890 --exhibit dashboard &
-          for i in $(seq 1 30); do
-            curl -sf -o /dev/null "http://localhost:8890/host/index.html" && \
-            curl -s -o /dev/null "http://localhost:8891/" && break
-            sleep 2
-          done
-      # Deterministic regression: scripted provider, no API key, no network model.
-      - name: Smoke (scripted)
-        run: node host/smoke.ts
+
+      # One command, because the gates are one set. run-gates owns the start
+      # order, the ports, and which exhibit each gate needs — the same script a
+      # person runs locally, so CI and the README cannot drift apart. It fails
+      # loudly if a host never answers, rather than letting a dead host surface
+      # as whichever error the gate happens to produce.
+      #
+      # Deterministic throughout: scripted providers, no API key, no network model.
+      - name: Gates
+        run: node host/tools/run-gates.ts
