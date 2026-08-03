@@ -84,13 +84,28 @@ function changedLines(before: string, after: string): number {
 }
 
 // ── 시드 ─────────────────────────────────────────────────────────────────
-await http("POST", "/stage/targets", { target: TARGET, artifacts: exhibit.artifacts });
+// 다중 facet 전시물은 schema·data 도 함께 시드한다 — 없으면 스키마 연산이
+// 존재하지 않는 엔티티를 대상으로 하게 된다.
+await http("POST", "/stage/targets", {
+  target: TARGET,
+  artifacts: exhibit.artifacts,
+  ...(exhibit.schema ? { schema: exhibit.schema } : {}),
+  ...(exhibit.data ? { data: exhibit.data } : {}),
+});
 let live: Record<string, string> = { ...exhibit.artifacts };
-console.log(`seeded ${TARGET} (${spec.turns.length} turns)`);
+const multiFacet = Boolean(exhibit.schema || exhibit.data);
+
+/** 현재 라이브의 facet fingerprint (다중 facet 전시물의 동반성 판정 근거). */
+async function facetFingerprints(): Promise<Record<string, string>> {
+  return (await http("GET", `/stage/targets/${TARGET}/artifacts`)).fingerprints ?? {};
+}
+console.log(`seeded ${TARGET} (${spec.turns.length} turns)${multiFacet ? " [multi-facet]" : ""}`);
 
 // ── 턴 루프 ──────────────────────────────────────────────────────────────
 /** 턴별 apply 직후 상태 (게이트 체크포인트 조회용). states[0] = 시드. */
 const states: Array<Record<string, string>> = [{ ...live }];
+/** states 와 같은 인덱스의 facet fingerprint 스냅샷 (다중 facet 전시물만 채운다). */
+const facetStates: Array<Record<string, string>> = [multiFacet ? await facetFingerprints() : {}];
 let lastApply: { sessionId: string; approved: unknown; fingerprint: string } | null = null;
 let anyDefect = false;
 
@@ -113,8 +128,13 @@ for (let i = 0; i < spec.turns.length; i++) {
     console.log(`turn${i + 1} ${type}: NO-PROPOSAL (${turn.outcome?.status}) ${secs}s — recorded, continuing`);
     anyDefect = true;
     states.push({ ...live });
+    facetStates.push(facetStates[facetStates.length - 1]);
     continue;
   }
+
+  // 제안이 담은 facet 구성 — 3-facet 저작 판정의 1차 근거(모델이 낸 것 그대로).
+  const p = turn.proposal.changeset.patches;
+  const facetCounts = { schema: p.schema.length, data: p.data.length, ui: p.ui.length };
 
   const approved = structuredClone(turn.proposal.changeset);
   approved.approvals = [
@@ -133,10 +153,20 @@ for (let i = 0; i < spec.turns.length; i++) {
   );
   if (delta === 0) anyDefect = true;
   console.log(
-    `turn${i + 1} ${type}: ${turn.outcome.status} attempts=${turn.outcome.attempts} ${secs}s changedLines=${delta}${delta === 0 ? " ← NO-OP" : ""}`,
+    `turn${i + 1} ${type}: ${turn.outcome.status} attempts=${turn.outcome.attempts} ${secs}s changedLines=${delta}${delta === 0 ? " ← NO-OP" : ""}` +
+      ` facets={schema:${facetCounts.schema},data:${facetCounts.data},ui:${facetCounts.ui}}`,
   );
   live = apply.artifacts;
   states.push({ ...live });
+  if (multiFacet) {
+    const after = await facetFingerprints();
+    const before = facetStates[facetStates.length - 1];
+    const moved = Object.keys(after).filter((k) => after[k] !== before[k]);
+    console.log(`  facets moved: [${moved.join(", ")}]`);
+    facetStates.push(after);
+  } else {
+    facetStates.push({});
+  }
   lastApply = { sessionId: propose.sessionId, approved, fingerprint: turn.proposal.fingerprint };
 
   if (renderCheckFn) {
@@ -161,6 +191,7 @@ const record = await runRollbackGate({
   fingerprint: lastApply.fingerprint,
   approvedChangeset: lastApply.approved,
   checkpointArtifacts: states[checkpointTurn],
+  ...(multiFacet ? { checkpointFacetFingerprints: facetStates[checkpointTurn] } : {}),
 });
 if (spec.rollbackOut) {
   mkdirSync(dirname(spec.rollbackOut), { recursive: true });

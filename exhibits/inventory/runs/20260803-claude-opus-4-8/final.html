@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>inventory · 20260803-claude-opus-4-8 — vivarium gallery run</title>
+  <link rel="icon" href="data:," />
+  <style>
+    body { font-family: -apple-system, "Segoe UI", sans-serif; margin: 0; background: #f6f7f9; color: #1c1f24; }
+    header { padding: 0.8rem 1rem; font-size: 0.85rem; border-bottom: 1px solid #d8dbe0; background: #fff; }
+    header b { font-size: 1rem; }
+    header .note { color: #666; }
+    #root { padding: 0.5rem; }
+    #error { color: #d64545; padding: 1rem; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <header>
+    <b>재고 품목 표</b> — run 20260803-claude-opus-4-8
+    <div class="note">자립형 아카이브 뷰어 · capability 값은 아카이브 시점 스냅샷 · 스키마·데이터·UI 세 facet 이 한 번의 승인으로 함께 움직이는 전시물</div>
+  </header>
+  <div id="root"></div>
+  <div id="error" hidden></div>
+  <script type="module">
+    const ARTIFACT_SOURCE = "export default async function mount(root, api) {\n  // Column list is OWNED BY THE ARTIFACT — adding a schema field only shows up\n  // on screen when a column is added here too. That coupling is the point.\n  const columns = [\n    { key: \"sku\", label: \"SKU\" },\n    { key: \"name\", label: \"품목\" },\n    { key: \"quantity\", label: \"수량\" },\n    { key: \"restockDue\", label: \"재입고 예정일\" },\n  ];\n  const rows = await api.invoke(\"inventory.list\", {});\n  root.innerHTML = \"\";\n  const page = document.createElement(\"main\");\n  page.style.cssText = \"font-family:system-ui,sans-serif;color:#1d2129;max-width:720px;margin:0 auto;padding:24px\";\n  const title = document.createElement(\"h1\");\n  title.style.cssText = \"font-size:22px;margin:0 0 16px\";\n  title.textContent = \"재고 품목\";\n  const table = document.createElement(\"table\");\n  table.style.cssText = \"width:100%;border-collapse:collapse;font-size:14px\";\n  const head = document.createElement(\"tr\");\n  for (const col of columns) {\n    const th = document.createElement(\"th\");\n    th.style.cssText = \"text-align:left;border-bottom:2px solid #dde1e8;padding:8px 12px;font-weight:600\";\n    th.textContent = col.label;\n    head.append(th);\n  }\n  table.append(head);\n  for (const row of rows) {\n    const tr = document.createElement(\"tr\");\n    for (const col of columns) {\n      const td = document.createElement(\"td\");\n      td.style.cssText = \"border-bottom:1px solid #eef0f4;padding:8px 12px\";\n      td.textContent = row[col.key] === undefined || row[col.key] === null ? \"—\" : String(row[col.key]);\n      tr.append(td);\n    }\n    table.append(tr);\n  }\n  page.append(title, table);\n  root.append(page);\n}";
+    const CAP_SNAPSHOT = {"inventory.list":[{"sku":"SKU-1001","name":"무선 마우스","quantity":42,"restockDue":"2026-08-20"},{"sku":"SKU-1002","name":"기계식 키보드","quantity":7,"restockDue":"2026-08-12"},{"sku":"SKU-1003","name":"USB-C 허브","quantity":0,"restockDue":"2026-08-07"}]};
+    const api = {
+      invoke: async (name) => {
+        if (!(name in CAP_SNAPSHOT)) throw new Error("capability not in snapshot: " + name);
+        return structuredClone(CAP_SNAPSHOT[name]);
+      },
+    };
+    try {
+      // data: URL import — blob: 과 달리 file:// 로 연 자립형 페이지에서도 동작.
+      const url = "data:text/javascript," + encodeURIComponent(ARTIFACT_SOURCE);
+      const { default: mount } = await import(url);
+      await mount(document.getElementById("root"), api);
+    } catch (err) {
+      const el = document.getElementById("error");
+      el.hidden = false;
+      el.textContent = "render failed: " + (err?.stack ?? err);
+    }
+  </script>
+</body>
+</html>

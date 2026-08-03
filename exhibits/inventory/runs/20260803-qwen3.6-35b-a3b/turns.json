@@ -1,0 +1,54 @@
+{
+  "history": {
+    "session": {
+      "sessionId": "gallery:inventory",
+      "turns": 1,
+      "provider": "gpustack:qwen3.6-35b-a3b",
+      "strategy": "plan-then-generate@0",
+      "knowledgeSources": [
+        "inventory-catalog"
+      ]
+    },
+    "history": [
+      {
+        "turn": 1,
+        "intent": "품목에 재입고 예정일을 추가하고 표에도 보여줘",
+        "status": "validated",
+        "fingerprint": "sha256:a58f6a6476e4df56faf7113848f8a2672dd68c7c2b4359ac939a23fa535c856c",
+        "attempts": 2
+      }
+    ]
+  },
+  "metrics": {
+    "turns": [
+      {
+        "turn": 1,
+        "endpoint": "session",
+        "status": "validated",
+        "latencyMs": 126547,
+        "attempts": 2,
+        "artifactBytes": 0,
+        "artifactLines": 0,
+        "providerCalls": [
+          {
+            "latencyMs": 42472,
+            "inputTokens": 829,
+            "outputTokens": 1711
+          },
+          {
+            "latencyMs": 28669,
+            "inputTokens": 984,
+            "outputTokens": 1586
+          },
+          {
+            "latencyMs": 55381,
+            "inputTokens": 1370,
+            "outputTokens": 3191
+          }
+        ],
+        "inputTokens": 3183,
+        "outputTokens": 6488
+      }
+    ]
+  }
+}

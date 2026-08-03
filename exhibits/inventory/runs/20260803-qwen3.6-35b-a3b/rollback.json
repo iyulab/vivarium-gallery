@@ -1,0 +1,17 @@
+{
+  "gate": "rollback-v1",
+  "target": "inventory",
+  "sessionId": "6ecfac8e0de9",
+  "fingerprint": "sha256:a58f6a6476e4df56faf7113848f8a2672dd68c7c2b4359ac939a23fa535c856c",
+  "checks": {
+    "rolledBack": true,
+    "byteIdentical": true,
+    "lineageConsistent": true,
+    "reapplied": true,
+    "facetsRestored": true
+  },
+  "detail": {},
+  "reappliedSessionId": "b7c4b281eaf2",
+  "passed": true,
+  "verifiedAt": "2026-08-03T12:25:19.380Z"
+}

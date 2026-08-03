@@ -1,0 +1,72 @@
+{
+  "history": {
+    "session": {
+      "sessionId": "gallery:inventory",
+      "turns": 1,
+      "provider": "anthropic:claude-opus-4-8",
+      "strategy": "plan-then-generate@0",
+      "knowledgeSources": [
+        "inventory-catalog"
+      ]
+    },
+    "history": [
+      {
+        "turn": 1,
+        "intent": "품목에 재입고 예정일을 추가하고 표에도 보여줘",
+        "status": "validated",
+        "fingerprint": "sha256:fdec4e60d1f7b08c1165ee5ed97619fa565aa01c6672fc66f3a96a309931d6bd",
+        "attempts": 1
+      }
+    ]
+  },
+  "metrics": {
+    "turns": [
+      {
+        "turn": 1,
+        "endpoint": "session",
+        "status": "validated",
+        "latencyMs": 20248,
+        "attempts": 1,
+        "artifactBytes": 0,
+        "artifactLines": 0,
+        "providerCalls": [
+          {
+            "latencyMs": 8982,
+            "inputTokens": 1119,
+            "outputTokens": 535
+          },
+          {
+            "latencyMs": 11253,
+            "inputTokens": 1485,
+            "outputTokens": 320
+          }
+        ],
+        "inputTokens": 2604,
+        "outputTokens": 855
+      },
+      {
+        "turn": 2,
+        "endpoint": "session",
+        "status": "validated",
+        "latencyMs": 13800,
+        "attempts": 1,
+        "artifactBytes": 0,
+        "artifactLines": 0,
+        "providerCalls": [
+          {
+            "latencyMs": 9167,
+            "inputTokens": 1119,
+            "outputTokens": 522
+          },
+          {
+            "latencyMs": 4632,
+            "inputTokens": 1492,
+            "outputTokens": 308
+          }
+        ],
+        "inputTokens": 2611,
+        "outputTokens": 830
+      }
+    ]
+  }
+}
