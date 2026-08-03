@@ -109,12 +109,18 @@ node host/tools/verify-consumption.ts
 
 | 이름 | 도메인 | 변경 유형 축 담당 | 상태 (runs/ 아카이브 참조) |
 | --- | --- | --- | --- |
-| [dashboard](exhibits/dashboard/) | dashboard | build·surgical·bulk | smoke 13/13 상시 게이트 · opus run 1건(surgical no-op — 게시본 0.0.2 결함 재현, ⑥ 대기) |
+| [dashboard](exhibits/dashboard/) | dashboard | build·surgical·bulk | `smoke` 14/14 상시 게이트 · opus run 4건 |
 | [landing-page](exhibits/landing-page/) | landing-page | build·surgical·theme·restructure | opus·qwen 완주 각 1건 (모델 축 비교 — qwen 날조 관찰 1건) |
 | [form-survey](exhibits/form-survey/) | form-survey | build·delete·bulk·i18n | opus 완주 1건 |
+| [inventory](exhibits/inventory/) | inventory | **facet 축** — 스키마+데이터+UI 동반 | `smoke-3facet` 8/8 · `smoke-refusal` 6/6 · `smoke-review` 5/5 · 실모델 run 2건 (**둘 다 미완주** — 아래) |
 
 세션 축은 실측 종결 — 재시작 후 세션 계보가 단절되는 갭을 확인했고,
 업스트림 재수화 원칙으로 이어졌다.
+
+`inventory` 는 다른 셋과 목적이 다르다: 필드 하나를 추가하는 변경이 **스키마·데이터·
+UI 세 facet 을 함께** 움직이는지를 시험한다. 결정적 경로는 통과하지만, **실모델 2종은
+어느 쪽도 3-facet 을 저작하지 못했다**(한쪽은 스키마+UI, 다른 쪽은 UI 단독). 그 결과가
+`runs/` 에 판정과 함께 남아 있다 — 미완주 run 도 결과이며, 지우지 않는다.
 
 전시 표면: **https://iyulab.github.io/vivarium-gallery/** (로컬 원본은
 [index/gallery.html](index/gallery.html), `node index/build-index.ts`로 재생성).
