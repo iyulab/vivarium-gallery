@@ -72,6 +72,21 @@
     #reject-btn:disabled { background: #e6a9a9; border-color: #e6a9a9; }
     #preview { height: 260px; border: 1px dashed #c3c7cf; border-radius: 6px; margin-bottom: 0.5rem; }
     #preview-section[hidden] { display: none; }
+    /* 승인 전 검토 표면 (T3) — changeset 이 이미 담은 것을 렌더할 뿐이다. */
+    #review { font-size: 0.78rem; }
+    .review-head { border-bottom: 1px solid #e5e5e5; padding-bottom: 0.4rem; margin-bottom: 0.5rem; }
+    .review-intent { margin: 0 0 0.2rem; font-weight: 600; }
+    .review-fp { margin: 0; color: #777; font-family: ui-monospace, Consolas, monospace; font-size: 0.72rem; }
+    .review-facets { margin: 0.2rem 0 0; color: #444; }
+    .review-facet h3 { font-size: 0.75rem; margin: 0.5rem 0 0.25rem; color: #333; letter-spacing: 0.02em; }
+    .review-item { border-left: 2px solid #dde1e8; padding-left: 0.5rem; margin-bottom: 0.4rem; }
+    .review-item code { font-family: ui-monospace, Consolas, monospace; font-size: 0.74rem; }
+    .review-why { margin: 0.15rem 0; color: #555; }
+    .review-ops { margin: 0.15rem 0 0; padding-left: 1rem; font-family: ui-monospace, Consolas, monospace; font-size: 0.72rem; }
+    .review-diff { white-space: pre-wrap; font-size: 0.72rem; background: #fafbfc; border: 1px solid #e5e7eb; border-radius: 6px; padding: 0.35rem; margin: 0.25rem 0 0; max-height: 220px; overflow-y: auto; }
+    .diff-add { color: #1a7f37; }
+    .diff-del { color: #b3261e; }
+    .diff-hunk { color: #6639ba; }
     #ledger-list { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow-y: auto; font-size: 0.78rem; font-family: ui-monospace, Consolas, monospace; }
     #ledger-list li { padding: 0.2rem 0; border-bottom: 1px solid #eee; }
     #status { font-size: 0.8rem; color: #444; }
@@ -101,6 +116,8 @@
       <section id="preview-section" hidden>
         <h2>제안 프리뷰</h2>
         <div id="preview"></div>
+        <h2>무엇이 바뀌는가</h2>
+        <div id="review"></div>
         <button id="approve-btn">승인</button>
         <button id="reject-btn">거부</button>
       </section>

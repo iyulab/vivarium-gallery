@@ -25,12 +25,14 @@
 import { mountSandbox, CapabilityRegistry } from "@vivariumjs/runtime";
 import type { ElementDescriptor, EditContext } from "@vivariumjs/runtime";
 import type { ExhibitDefinition } from "./exhibit-schema.ts";
+import { renderChangesetReview } from "./review.ts";
 
 // ── DOM ──────────────────────────────────────────────────────────────────
 const titleEl = document.getElementById("exhibit-title") as HTMLElement;
 const canvasEl = document.getElementById("canvas") as HTMLElement;
 const previewEl = document.getElementById("preview") as HTMLElement;
 const previewSection = document.getElementById("preview-section") as HTMLElement;
+const reviewEl = document.getElementById("review") as HTMLElement;
 const chatInput = document.getElementById("chat-input") as HTMLTextAreaElement;
 const sendBtn = document.getElementById("send-btn") as HTMLButtonElement;
 const approveBtn = document.getElementById("approve-btn") as HTMLButtonElement;
@@ -241,6 +243,9 @@ async function sendChat(): Promise<void> {
     // only, no live effect (approval happens on the approve button).
     const propose = await post(`/stage/targets/${target}/changesets`, pendingProposal!.changeset);
     await preview.render(propose.preview[primaryArtifactId]);
+    // 결과(프리뷰) 옆에 **무엇이 왜 바뀌는가**를 함께 둔다 — changeset 이 이미 담고
+    // 있는 것을 렌더할 뿐이며, 승인은 이 화면을 보고 내리는 판단이다 (T3).
+    renderChangesetReview(reviewEl, pendingProposal!.changeset);
     setPendingUi(true);
     chatInput.value = "";
     setStatus("프리뷰 준비됨 — 승인 또는 거부하세요");
