@@ -180,7 +180,12 @@ async function init(): Promise<void> {
   // POST /stage/targets always succeeds and (re)seeds the target — the
   // in-memory adapter's SeedTarget is unconditional, so reseeding on load
   // is simply idempotent from this app's perspective.
-  await post("/stage/targets", { target, artifacts: exhibit.artifacts });
+  await post("/stage/targets", {
+    target,
+    artifacts: exhibit.artifacts,
+    ...(exhibit.schema ? { schema: exhibit.schema } : {}),
+    ...(exhibit.data ? { data: exhibit.data } : {}),
+  });
   const seeded = await get(`/stage/targets/${target}/artifacts`);
   liveArtifacts = seeded.artifacts;
   await canvas.render(liveArtifacts[primaryArtifactId]);

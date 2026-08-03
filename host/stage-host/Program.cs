@@ -44,11 +44,22 @@ app.MapPost("/targets", async (HttpRequest request) =>
     return Results.Json(new { stateRef = active.StateRef, fingerprints = active.FacetFingerprints });
 });
 
-// Current live artifacts — what the canvas should be rendering.
+// Current live world. `artifacts` is what the canvas renders; `schema`/`data`
+// and the per-facet fingerprints are what a multi-facet change is judged by —
+// a UI-only read cannot tell "all three flipped together" from "the UI flipped
+// and the schema didn't", which is exactly the claim a 3-facet exhibit makes.
 app.MapGet("/targets/{target}/artifacts", async (string target) =>
 {
     var active = await adapter.ActiveStateAsync(target);
-    return Results.Json(new { stateRef = active.StateRef, artifacts = ArtifactsOf(adapter, active.StateRef) });
+    var world = (JsonObject)JsonNode.Parse(adapter.WorldCanonical(active.StateRef))!;
+    return Results.Json(new
+    {
+        stateRef = active.StateRef,
+        artifacts = world["artifacts"]!.DeepClone(),
+        schema = world["schema"]!.DeepClone(),
+        data = world["data"]!.DeepClone(),
+        fingerprints = active.FacetFingerprints,
+    });
 });
 
 // Propose: admit the changeset into the lifecycle, branch, and prepare the

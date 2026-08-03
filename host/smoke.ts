@@ -21,7 +21,7 @@
  * Exit 0 + "smoke: 14/14 PASS" on success; exit 1 otherwise.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { artifactFingerprint } from "@vivariumjs/changeset";
 import exhibit from "../exhibits/dashboard/exhibit.ts";
 import { runRollbackGate } from "./tools/rollback-gate.ts";
@@ -444,13 +444,20 @@ async function main(): Promise<void> {
     const { buildIndex } = await import("../index/build-index.ts");
     const outPath = await buildIndex();
     const html = readFileSync(outPath, "utf8");
-    const missing = ["dashboard", "landing-page", "form-survey"].filter((name) => !html.includes(`<code>${name}</code>`));
+    // 기대 목록은 exhibits/ 에서 파생한다 — 하드코딩하면 새 전시물이 인덱스에서
+    // 누락돼도 게이트가 통과한다(실제로 4번째 전시물에서 그럴 뻔했다).
+    const exhibitsDir = new URL("../exhibits/", import.meta.url);
+    const names = readdirSync(exhibitsDir).filter((name) =>
+      existsSync(new URL(`${name}/exhibit.ts`, exhibitsDir)),
+    );
+    const missing = names.filter((name) => !html.includes(`<code>${name}</code>`));
+    if (names.length === 0) throw new Error("no exhibits found — the expectation list would be vacuous");
     if (missing.length > 0) {
       throw new Error(`gallery.html missing exhibit section(s): ${missing.join(", ")}`);
     }
-    ok(n, "build-index → gallery.html 생성, 전시물 3종 섹션 전부 등재");
+    ok(n, `build-index → gallery.html 생성, 전시물 ${names.length}종 섹션 전부 등재`);
   } catch (err) {
-    fail(n, "build-index → gallery.html 생성, 전시물 3종 섹션 전부 등재", err);
+    fail(n, "build-index → gallery.html 생성, 전 전시물 섹션 등재", err);
   }
 
   // ── 14. 렌더 검증 — 정상 시드 통과 / 기대-invoke 불일치·실행 예외 감지 ──

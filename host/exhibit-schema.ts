@@ -33,6 +33,16 @@ export interface ExhibitDefinition {
   target: string;
   /** 시드 아티팩트 — artifactId → plain-JS mount 모듈 소스. */
   artifacts: Record<string, string>;
+  /**
+   * 시드 논리 스키마 (선택) — `{ entities: { <Entity>: { fields, constraints } } }`.
+   * 생략하면 빈 스키마로 시드된다(UI 단일 facet 전시물의 기존 거동).
+   */
+  schema?: Record<string, unknown>;
+  /**
+   * 시드 데이터 (선택) — `{ <Entity>: [ row, … ] }`. 생략하면 빈 데이터.
+   * schema·data 를 둘 다 시드하는 전시물이 3-facet 동반 변경의 무대가 된다.
+   */
+  data?: Record<string, unknown>;
   /** 캔버스·프리뷰가 렌더하는 아티팩트 (현 호스트는 단일-아티팩트 렌더). */
   primaryArtifactId: string;
   /** 브라우저 샌드박스에 grant 되는 capability 목록 (mock 데이터 — 규율 2). */

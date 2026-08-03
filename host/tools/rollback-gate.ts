@@ -8,6 +8,9 @@
  *      항목의 changesetFingerprint가 대상 세션의 fingerprint와 일치
  *   4. 재적용(동일 승인 changeset re-propose → apply)으로 계속 사용
  *      가능함을 확인 — 라이브가 롤백 직전 상태로 복귀
+ *   (5.) 다중 facet 전시물이면 — 입력에 checkpointFacetFingerprints 가 있을 때만
+ *      — schema·data·ui 가 **함께** 체크포인트로 돌아왔는지. UI 바이트 일치는
+ *      "UI 만 돌아온" 부분 복귀를 구분하지 못한다.
  *
  * 실행 주체(run-cycle 세션 또는 smoke)가 상태 타임라인을 알고 있으므로
  * 체크포인트·changeset은 호출자가 공급한다. 기록은 rollback.json 형식
@@ -33,6 +36,13 @@ export interface RollbackGateInput {
   approvedChangeset: unknown;
   /** 직전 체크포인트 — 롤백 후 라이브가 바이트 일치해야 하는 상태. */
   checkpointArtifacts: Record<string, string>;
+  /**
+   * 다중 facet 전시물 전용(선택) — 체크포인트 시점의 facet 별 fingerprint
+   * (`GET /stage/targets/<t>/artifacts` 의 `fingerprints`). 공급하면 롤백 후
+   * **세 facet 이 함께 되돌아왔는지**를 별도 판정한다. UI 바이트 일치만으로는
+   * "UI 는 돌아왔는데 스키마는 안 돌아왔다"를 잡지 못한다.
+   */
+  checkpointFacetFingerprints?: Record<string, string>;
 }
 
 export interface RollbackGateRecord {
@@ -45,6 +55,8 @@ export interface RollbackGateRecord {
     byteIdentical: boolean;
     lineageConsistent: boolean;
     reapplied: boolean;
+    /** 다중 facet 판정 — 입력에 체크포인트 fingerprint 가 있을 때만 존재. */
+    facetsRestored?: boolean;
   };
   /** 각 체크의 실패 상세 (성공 시 생략). */
   detail: Record<string, string>;
@@ -107,12 +119,21 @@ export async function runRollbackGate(input: RollbackGateInput): Promise<Rollbac
     detail.rolledBack = String(err instanceof Error ? err.message : err);
   }
 
-  // 2. 체크포인트 바이트 일치
+  // 2. 체크포인트 바이트 일치 (+ 다중 facet 이면 facet 동반 복귀 판정)
   if (checks.rolledBack) {
-    const live: Record<string, string> = (await http(base, "GET", `/stage/targets/${target}/artifacts`)).artifacts;
-    const mismatch = byteIdentical(live, input.checkpointArtifacts);
+    const world = await http(base, "GET", `/stage/targets/${target}/artifacts`);
+    const mismatch = byteIdentical(world.artifacts, input.checkpointArtifacts);
     if (mismatch === null) checks.byteIdentical = true;
     else detail.byteIdentical = mismatch;
+
+    if (input.checkpointFacetFingerprints) {
+      const live: Record<string, string> = world.fingerprints ?? {};
+      const drifted = Object.entries(input.checkpointFacetFingerprints)
+        .filter(([facet, fp]) => live[facet] !== fp)
+        .map(([facet, fp]) => `${facet}: ${live[facet] ?? "(absent)"} ≠ ${fp}`);
+      checks.facetsRestored = drifted.length === 0;
+      if (drifted.length > 0) detail.facetsRestored = `facets not restored — ${drifted.join("; ")}`;
+    }
   }
 
   // 3. ledger 계보 정합 — 이번 게이트가 남긴 항목만 (seq > baseline)
@@ -159,7 +180,12 @@ export async function runRollbackGate(input: RollbackGateInput): Promise<Rollbac
     checks,
     detail,
     reappliedSessionId,
-    passed: checks.rolledBack && checks.byteIdentical && checks.lineageConsistent && checks.reapplied,
+    passed:
+      checks.rolledBack &&
+      checks.byteIdentical &&
+      checks.lineageConsistent &&
+      checks.reapplied &&
+      checks.facetsRestored !== false,
     verifiedAt: new Date().toISOString(),
   };
 }

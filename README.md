@@ -38,7 +38,10 @@ run 결과물(최종 화면·턴 기록·롤백 판정)을 그대로 열람할 �
   scripted provider) + `scenario.md`(변경 요구 시퀀스·완주 기준·롤백 게이트)
   + `runs/<yyyymmdd>-<model>/`(실행 아카이브 — final.html·turns.json·
   rollback.json·screenshot.png·RUN.md).
-- 새 전시물 추가 = 디렉터리 추가. 호스트는 변경되지 않는다.
+- 새 전시물 추가 = 디렉터리 추가. 호스트는 변경되지 않는다 — 단 전시물이
+  **새 facet 을 요구하면** 계약이 그만큼 넓어진다. `inventory` 가 그 사례로,
+  `ExhibitDefinition` 에 선택 필드 `schema`/`data` 가 그때 생겼다(UI 단일 facet
+  전시물은 예전 그대로 동작한다).
 
 ## 실행 (API 키만 넣으면 작동)
 
@@ -66,6 +69,10 @@ open http://localhost:8890/host/index.html
 # 결정적 회귀 (scripted provider 필수 — MODEL_PROVIDER 미설정으로 서버 기동)
 node host/smoke.ts        # 기대: smoke: 14/14 PASS (12 = 롤백 공통 게이트,
                           #        13 = 정적 인덱스 생성, 14 = 렌더 검증)
+                          # 전제: 호스트 서버가 --exhibit dashboard 로 기동
+
+# 3-facet 동반 변경 게이트 — 전제: 호스트 서버가 --exhibit inventory 로 기동
+node host/smoke-3facet.ts # 기대: smoke-3facet: 8/8 PASS
 
 # 소비 재현성 (레지스트리 신선도·클린룸 설치)
 node host/tools/verify-consumption.ts
