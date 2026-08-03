@@ -64,7 +64,8 @@ open http://localhost:8890/host/index.html
 
 ```bash
 # 결정적 회귀 (scripted provider 필수 — MODEL_PROVIDER 미설정으로 서버 기동)
-node host/smoke.ts        # 기대: smoke: 12/12 PASS (12 = 롤백 공통 게이트)
+node host/smoke.ts        # 기대: smoke: 14/14 PASS (12 = 롤백 공통 게이트,
+                          #        13 = 정적 인덱스 생성, 14 = 렌더 검증)
 
 # 소비 재현성 (레지스트리 신선도·클린룸 설치)
 node host/tools/verify-consumption.ts
