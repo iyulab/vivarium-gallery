@@ -20,8 +20,9 @@
  * Exit 0 only when every gate that ran passed.
  */
 
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { once } from "node:events";
+import { createServer } from "node:net";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -76,9 +77,45 @@ function start(command: string, argv: string[], label: string): ChildProcess {
   return child;
 }
 
+/**
+ * Kill the process *tree*. `dotnet run` launches the host as a grandchild, so
+ * killing the child alone leaves a listener holding the port — which is how a
+ * later run ends up talking to a stranger (see requirePortFree).
+ */
 function stopAll() {
   for (const child of children) {
-    if (child.exitCode === null && child.signalCode === null) child.kill();
+    if (child.exitCode !== null || child.signalCode !== null || child.pid === undefined) continue;
+    if (process.platform === "win32") {
+      spawnSync("taskkill", ["/pid", String(child.pid), "/t", "/f"], { stdio: "ignore" });
+    } else {
+      child.kill();
+    }
+  }
+}
+
+/**
+ * Refuse to start when something already holds a port we are about to use.
+ *
+ * Without this the runner checks readiness by asking the *port*, so a leftover
+ * process answers, the runner's own host dies with a bind error, and the gates
+ * run against whatever that stranger is — a different exhibit, most likely —
+ * while still printing per-assertion output. A green that means nothing is the
+ * exact failure this runner exists to prevent, and it is not exempt from it.
+ */
+async function requirePortFree(port: number, purpose: string) {
+  const probe = createServer();
+  try {
+    await new Promise<void>((ok, no) => {
+      probe.once("error", no);
+      probe.listen(port, "127.0.0.1", () => ok());
+    });
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    throw new Error(
+      `port ${port} (${purpose}) is already in use${code ? ` (${code})` : ""} — ` +
+      "stop whatever holds it and re-run; the gates must talk to the hosts this runner started, not to a leftover");
+  } finally {
+    await new Promise<void>((done) => probe.close(() => done()));
   }
 }
 
@@ -123,17 +160,23 @@ async function runGate(script: string, baseUrl: string): Promise<boolean> {
 const results: { name: string; passed: boolean }[] = [];
 
 try {
+  // one gallery host per exhibit, all up front: restarting between gates would
+  // buy nothing (each gate re-seeds) and cost a startup per gate.
+  const exhibits = [...new Set(selected.map((g) => g.exhibit))];
+  const portOf = new Map(exhibits.map((exhibit, i) => [exhibit, FIRST_GALLERY_PORT + i * 2]));
+
+  // every port first, before anything is started — a partial start followed by
+  // a refusal is worse to clean up than a refusal
+  await requirePortFree(STAGE_HOST_PORT, "stage-host");
+  for (const [exhibit, port] of portOf) await requirePortFree(port, `gallery host (${exhibit})`);
+
   // stage-host is exhibit-agnostic — one instance serves every exhibit, and the
   // gates use different targets, so they do not collide.
   const stageHost = start("dotnet", ["run", "--project", "host/stage-host", "--", String(STAGE_HOST_PORT)], "stage-host");
   await waitUntilAnswering(`http://localhost:${STAGE_HOST_PORT}/`, "stage-host", stageHost);
 
-  // one gallery host per exhibit, all up front: restarting between gates would
-  // buy nothing (each gate re-seeds) and cost a startup per gate.
-  const exhibits = [...new Set(selected.map((g) => g.exhibit))];
   const baseUrl = new Map<string, string>();
-  for (const [i, exhibit] of exhibits.entries()) {
-    const port = FIRST_GALLERY_PORT + i * 2;
+  for (const [exhibit, port] of portOf) {
     const host = start(process.execPath, ["host/server.ts", String(port), "--exhibit", exhibit], `host:${exhibit}`);
     const url = `http://localhost:${port}`;
     await waitUntilAnswering(`${url}/host/index.html`, `gallery host (${exhibit})`, host);
