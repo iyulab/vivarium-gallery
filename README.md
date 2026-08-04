@@ -115,7 +115,7 @@ node host/smoke-review.ts  # 기대: smoke-review: 5/5 PASS
 # 파괴성 축 — 전제: 호스트 서버가 --exhibit contacts 로 기동
 #   성공의 형태가 턴마다 다르다: 적용되고 **롤백이 잃은 값을 되돌려야** 성공인 턴,
 #   **거부되어야** 성공인 턴, 통과하되 **기록에 남아야** 성공인 턴.
-node host/smoke-destructive.ts # 기대: smoke-destructive: 8/8 PASS
+node host/smoke-destructive.ts # 기대: smoke-destructive: 9/9 PASS
 
 # 소비 재현성 (레지스트리 신선도·클린룸 설치)
 node host/tools/verify-consumption.ts
@@ -137,6 +137,12 @@ node host/tools/verify-consumption.ts
     거부된 promise 도 잡아 보고한다. 전시물은 이 기대를 `scenario.md` 에
     적는다. 선언이 없는 턴은 출력이 `mount-only` 라고 **말한다** — 판정하는
     코드는 자기가 판정하지 못하는 것을 말해야 한다.
+  - **비어서는 안 되는 자리도 본다** — 텍스트 하한은 화면 **전체**를 합산하므로
+    표의 열 하나가 통째로 비어도 나머지가 하한을 넘기면 통과한다. 실모델 run
+    하나가 정확히 그 상태를 만들었다(스키마를 개명하면서 데이터를 두고 가자
+    이름 칸이 세 행 모두 빈 칸 표기가 됐고 모든 게이트가 초록이었다). 턴별
+    `expectFilled` 로 자리를 선언하면 그것을 판정하며, 선언이 없으면 출력이
+    `(no filled regions declared)` 라고 말한다.
 - `host/tools/rollback-gate.ts` — 롤백 공통 게이트(설계 §3) 4단계 판정:
   롤백 → 체크포인트 바이트 일치 → ledger 계보 정합 → 재적용. 결과는
   `rollback.json` 형식. 라이브러리 + CLI 겸용.
@@ -158,7 +164,7 @@ node host/tools/verify-consumption.ts
 | [landing-page](exhibits/landing-page/) | landing-page | build·surgical·theme·restructure | opus·qwen 완주 각 1건 (모델 축 비교 — qwen 날조 관찰 1건) |
 | [form-survey](exhibits/form-survey/) | form-survey | build·delete·bulk·i18n | opus 완주 1건 |
 | [inventory](exhibits/inventory/) | inventory | **facet 축** — 스키마+데이터+UI 동반 | `smoke-3facet` 8/8 · `smoke-refusal` 9/9 · `smoke-review` 5/5 · 실모델 run 2건 (**둘 다 미완주** — 아래) |
-| [contacts](exhibits/contacts/) | contacts | **파괴성 축** — 제거·타입 변경·기존 데이터를 위반하는 제약 | `smoke-destructive` 8/8 · 실모델 run 1건 (**미완주 1/2** — 아래) |
+| [contacts](exhibits/contacts/) | contacts | **파괴성 축** — 제거·타입 변경·기존 데이터를 위반하는 제약 | `smoke-destructive` 9/9 · 실모델 run 1건 (**미완주 1/2** — 아래) |
 
 세션 축은 실측 종결 — 재시작 후 세션 계보가 단절되는 갭을 확인했고,
 업스트림 재수화 원칙으로 이어졌다.
@@ -170,7 +176,8 @@ node host/tools/verify-consumption.ts
 데이터 패치의 **형태**에서 떨어져서), 개명 턴은 **모든 게이트를 통과한 채 화면의 이름
 열을 비웠다**(스키마만 옮기고 데이터를 두고 갔다). 뒤엣것은 결함이 아니라 선언된
 대가이며, 열이 통째로 비는 것을 **지금 어떤 게이트도 판정하지 않는다**는 사각을 함께
-드러냈다. 정본은 그 run 의 RUN.md.
+드러냈다. 정본은 그 run 의 RUN.md. **그 사각은 곧 닫혔다** — `render-check` 가
+자리 선언을 받고, 그 판정의 픽스처는 그 run 의 산출물 그대로다.
 
 `inventory` 는 다른 셋과 목적이 다르다: 필드 하나를 추가하는 변경이 **스키마·데이터·
 UI 세 facet 을 함께** 움직이는지를 시험한다. 결정적 경로는 통과하지만, **실모델 2종은

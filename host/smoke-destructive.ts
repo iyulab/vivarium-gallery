@@ -24,12 +24,16 @@
  * MODEL_PROVIDER 미설정 — 결정성은 scripted provider 에 의존).
  *
  * Usage: node host/smoke-destructive.ts
- * Exit 0 + "smoke-destructive: 8/8 PASS" on success; exit 1 otherwise.
+ * Exit 0 + "smoke-destructive: 9/9 PASS" on success; exit 1 otherwise.
  */
 
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { addSchemaOp, createChangeset, finalize } from "@vivariumjs/changeset";
 import exhibit from "../exhibits/contacts/exhibit.ts";
 import { COLUMN_WITH_FAX, RETIRED_FIELD } from "../exhibits/contacts/scripted.ts";
+import { checkRender } from "./tools/render-check.ts";
 import { runRollbackGate } from "./tools/rollback-gate.ts";
 
 const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:8890";
@@ -39,7 +43,7 @@ const SEED_CONTENT = exhibit.artifacts[ARTIFACT_ID];
 const ENTITY = "Contact";
 /** 실재하지 않는 엔티티 — 저작 시점 검사가 아니라 **어댑터**를 시험하기 위한 표적. */
 const ABSENT_ENTITY = "NoSuchEntity";
-const TOTAL = 8;
+const TOTAL = 9;
 const FACET_KEYS = ["schema", "data", ARTIFACT_ID];
 
 let passCount = 0;
@@ -383,6 +387,61 @@ async function main(): Promise<void> {
     ok(n, "③ 기존 데이터를 위반하는 제약이 **그대로 착지한다** — 결함이 아니라 미선언 (뒤집히지 않는다)");
   } catch (err) {
     fail(n, "③ 기존 데이터를 위반하는 제약이 **그대로 착지한다** — 결함이 아니라 미선언 (뒤집히지 않는다)", err);
+  }
+
+  // ── 9. 보이던 열이 사라진 것을 게이트가 본다 (대조군 쌍) ────────────────
+  n = 9;
+  try {
+    // 픽스처는 **손으로 쓰지 않는다** — 아카이브된 실모델 run 의 산출물 그대로다.
+    // 손으로 쓴 픽스처는 이 사각을 만들어 내지 못했다: 그것을 만든 것은 스키마를
+    // 개명하면서 데이터를 두고 간 실제 턴이고, 그 턴은 모든 게이트를 통과했다.
+    const here = dirname(fileURLToPath(import.meta.url));
+    const brokenSource = readFileSync(
+      join(here, "..", "exhibits", "contacts", "runs", "20260804-claude-opus-4-8", "artifacts", "contacts-main.js"),
+      "utf8",
+    );
+    const expectFilled = [{ selector: "td:first-child", placeholder: "—" }];
+
+    // 대조군 먼저 — 시드는 통과해야 한다. 통과하지 않으면 아래 실패는 이 판정이
+    // 무엇에나 빨간불을 켠다는 뜻일 뿐 아무것도 구별하지 않는다.
+    const seedCheck = await checkRender(SEED_CONTENT, exhibit.capabilities, {
+      expectInvokes: ["contacts.list"],
+      expectFilled,
+    });
+    if (!seedCheck.ok) {
+      throw new Error(`대조군(시드)이 떨어졌다 — ${seedCheck.errors.join(" | ")}`);
+    }
+    if (seedCheck.filled[0]?.total !== 3 || seedCheck.filled[0]?.blank !== 0) {
+      throw new Error(`대조군 판독이 예상과 다르다: ${JSON.stringify(seedCheck.filled)}`);
+    }
+
+    const brokenCheck = await checkRender(brokenSource, exhibit.capabilities, {
+      expectInvokes: ["contacts.list"],
+      expectFilled,
+    });
+    if (brokenCheck.ok) {
+      throw new Error("개명 run 의 산출물이 통과했다 — 이 판정이 그 사각을 보지 못한다");
+    }
+    if (brokenCheck.filled[0]?.blank !== 3) {
+      throw new Error(`빈 칸 판독이 예상과 다르다: ${JSON.stringify(brokenCheck.filled)}`);
+    }
+    // 마운트 총량으로는 여전히 멀쩡하다는 것이 이 단언의 요점이다.
+    if (brokenCheck.childCount < 1 || brokenCheck.textLength < 20) {
+      throw new Error(
+        `전제가 깨졌다 — 마운트 총량 판정이 이미 이것을 잡는다면 자리 선언이 필요 없다: ` +
+          `children=${brokenCheck.childCount} text=${brokenCheck.textLength}`,
+      );
+    }
+    ok(
+      n,
+      "개명 run 의 산출물 — 마운트 총량은 멀쩡한데(children≥1·text≥20) **이름 칸 3/3 이 비었고** 자리 선언이 그것을 잡는다 (시드는 통과 — 대조군)",
+    );
+  } catch (err) {
+    fail(
+      n,
+      "개명 run 의 산출물 — 마운트 총량은 멀쩡한데(children≥1·text≥20) **이름 칸 3/3 이 비었고** 자리 선언이 그것을 잡는다 (시드는 통과 — 대조군)",
+      err,
+    );
   }
 
   await seed();

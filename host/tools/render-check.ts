@@ -11,7 +11,12 @@
  *      (dataset 대신 legacy metrics 호출 → 전 필드 undefined → 빈 렌더)를
  *      정확히 잡는 검사. api 는 exhibit 의 실제 handler 결과를 공급하며
  *      호출 이름을 기록한다.
- *   4. **마운트 이후** — 선언된 상호작용을 실제로 보내고 그 결과를 판정한다.
+ *   4. **비어서는 안 되는 자리** — 2의 텍스트 하한은 화면 **전체**를 합산하므로,
+ *      표의 열 하나가 통째로 비어도 나머지가 하한을 넘기면 통과한다. 실모델 run
+ *      하나가 정확히 그 상태를 만들었다: 스키마를 개명하면서 데이터를 두고 가자
+ *      이름 칸이 세 행 모두 빈 칸 표기가 됐고, 모든 게이트가 초록이었다. 총량으로는
+ *      잡을 수 없으므로 전시물이 **자리**를 선언하고 여기서 그것을 읽는다.
+ *   5. **마운트 이후** — 선언된 상호작용을 실제로 보내고 그 결과를 판정한다.
  *      1~3 은 전부 마운트 시점의 성질이라, 화면은 그려지지만 누르면 아무
  *      일도 일어나지 않는 UI 가 전부 통과한다. 제출 리스너 이름이 틀린
  *      아티팩트와 정상 아티팩트는 마운트 시점 값이 **완전히 동일하다**
@@ -39,9 +44,32 @@ export interface InteractionStep {
   settleMs?: number;
 }
 
+/**
+ * **비어서는 안 되는 자리**의 선언.
+ *
+ * 마운트 판정(자식≥1 · 텍스트 하한)은 화면 **전체**의 총량을 본다. 그래서 표의
+ * 열 하나가 통째로 비어도, 나머지 열의 텍스트가 하한을 넘기면 통과한다 — 실모델
+ * run 하나가 정확히 그 상태를 만들었다(스키마를 개명하면서 데이터를 두고 가자
+ * 이름 칸 셋이 전부 빈 칸 표기가 됐고, 모든 게이트가 초록이었다).
+ *
+ * 총량으로는 잡을 수 없으므로 **자리**를 선언한다. 무엇이 항상 차 있어야 하는지는
+ * 전시물만 알고, 그래서 선언은 전시물의 몫이다 — 상호작용 기대와 같은 어법이다.
+ */
+export interface FilledExpectation {
+  /** root 기준 `querySelectorAll`. 매치가 0건이면 그것 자체가 실패다. */
+  selector: string;
+  /**
+   * 이 문자열만 담은 요소는 **비어 있는 것으로 센다** — 하우스 규칙이 빈 칸을
+   * 표기로 채우면(예: "—") 텍스트 길이로는 빈 것과 찬 것이 구별되지 않는다.
+   */
+  placeholder?: string;
+}
+
 export interface RenderCheckOptions {
   /** 이 이름들이 전부 invoke 되어야 통과 (예: ["dashboard.dataset"]). */
   expectInvokes?: string[];
+  /** 비어서는 안 되는 자리 — 매치된 요소가 **하나라도** 비면 실패. */
+  expectFilled?: FilledExpectation[];
   /** root.textContent 최소 길이 (기본 20). */
   minTextLength?: number;
   /** mount 완료 대기 한도 ms (기본 5000). */
@@ -60,12 +88,22 @@ export interface InteractionRecord {
   errors: string[];
 }
 
+export interface FilledRecord {
+  selector: string;
+  /** 매치된 요소 수. */
+  total: number;
+  /** 그중 비어 있던 수 (빈 문자열 또는 선언된 빈 칸 표기). */
+  blank: number;
+}
+
 export interface RenderCheckRecord {
   ok: boolean;
   errors: string[];
   invoked: string[];
   childCount: number;
   textLength: number;
+  /** 선언된 자리가 없으면 빈 배열 — 총량만 판정했다는 뜻이다. */
+  filled: FilledRecord[];
   /** 선언된 상호작용이 없으면 빈 배열 — 마운트 판정만 돌았다는 뜻이다. */
   interactions: InteractionRecord[];
 }
@@ -78,6 +116,7 @@ export async function checkRender(
   const errors: string[] = [];
   const invoked: string[] = [];
   const interactions: InteractionRecord[] = [];
+  const filled: FilledRecord[] = [];
   const minTextLength = options.minTextLength ?? 20;
   const handlers = new Map(capabilities.map((c) => [c.descriptor.name, c.handler]));
 
@@ -149,6 +188,29 @@ export async function checkRender(
           errors.push(`expected capability not invoked: ${name} (invoked: ${invoked.join(", ") || "none"})`);
         }
       }
+
+      // 총량이 아니라 **자리**를 본다. 위 텍스트 하한은 화면 전체를 합산하므로
+      // 열 하나가 통째로 비어도 나머지가 하한을 넘기면 통과한다.
+      for (const want of options.expectFilled ?? []) {
+        const nodes = Array.from(root.querySelectorAll(want.selector));
+        if (nodes.length === 0) {
+          // 매치 0건을 통과로 두면 셀렉터가 낡는 순간 판정이 조용히 사라진다.
+          errors.push(`expectFilled matched nothing: ${want.selector}`);
+          filled.push({ selector: want.selector, total: 0, blank: 0 });
+          continue;
+        }
+        const blank = nodes.filter((node) => {
+          const text = (node.textContent ?? "").trim();
+          return text === "" || (want.placeholder !== undefined && text === want.placeholder);
+        });
+        filled.push({ selector: want.selector, total: nodes.length, blank: blank.length });
+        if (blank.length > 0) {
+          errors.push(
+            `region rendered empty: ${blank.length}/${nodes.length} matching ${want.selector} are blank` +
+              (want.placeholder === undefined ? "" : ` or ${JSON.stringify(want.placeholder)}`),
+          );
+        }
+      }
     }
 
     // ── 마운트 이후 ───────────────────────────────────────────────────────
@@ -209,5 +271,5 @@ export async function checkRender(
     for (const key of injected) g[key] = saved[key];
   }
 
-  return { ok: errors.length === 0, errors, invoked, childCount, textLength, interactions };
+  return { ok: errors.length === 0, errors, invoked, childCount, textLength, filled, interactions };
 }

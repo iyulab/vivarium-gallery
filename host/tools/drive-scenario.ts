@@ -31,7 +31,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join, normalize } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { ExhibitDefinition } from "../exhibit-schema.ts";
-import type { InteractionStep } from "./render-check.ts";
+import type { FilledExpectation, InteractionStep } from "./render-check.ts";
 import { runRollbackGate } from "./rollback-gate.ts";
 
 const galleryRoot = normalize(join(fileURLToPath(import.meta.url), "..", "..", ".."));
@@ -48,6 +48,12 @@ interface TurnSpec {
    * InteractionStep 과 같다.
    */
   expectInteractions?: InteractionStep[];
+  /**
+   * 이 턴 뒤 **비어서는 안 되는 자리**. 텍스트 하한이 화면 전체를 합산하는 것과
+   * 달리 자리를 짚는다 — 열 하나가 통째로 비어도 나머지가 하한을 넘기면 총량
+   * 판정은 통과하기 때문이다.
+   */
+  expectFilled?: FilledExpectation[];
 }
 interface ScenarioSpec {
   base?: string;
@@ -185,6 +191,7 @@ for (let i = 0; i < spec.turns.length; i++) {
   if (renderCheckFn) {
     const check = await renderCheckFn(live[exhibit.primaryArtifactId], exhibit.capabilities, {
       expectInvokes,
+      ...(turn.expectFilled ? { expectFilled: turn.expectFilled } : {}),
       ...(expectInteractions ? { interactions: expectInteractions } : {}),
     });
     if (!check.ok) anyDefect = true;
@@ -194,8 +201,13 @@ for (let i = 0; i < spec.turns.length; i++) {
     const scope = expectInteractions?.length
       ? `interactions=${check.interactions.map((s) => `${s.event}@${s.selector}→[${s.invoked.join(",")}]`).join(" ")}`
       : "mount-only (no interactions declared)";
+    // 같은 이유로 자리 선언의 유무도 말한다 — 총량만 봤다는 것과 자리까지 봤다는
+    // 것은 초록의 폭이 다르고, 읽는 사람이 그 차이를 알아야 한다.
+    const regions = check.filled.length
+      ? ` filled=${check.filled.map((f) => `${f.selector}:${f.total - f.blank}/${f.total}`).join(" ")}`
+      : " (no filled regions declared)";
     console.log(
-      `  render-check: ${check.ok ? "ok" : "FAIL"} invoked=[${check.invoked.join(",")}] children=${check.childCount} text=${check.textLength} ${scope}${check.ok ? "" : " — " + check.errors.join(" | ")}`,
+      `  render-check: ${check.ok ? "ok" : "FAIL"} invoked=[${check.invoked.join(",")}] children=${check.childCount} text=${check.textLength}${regions} ${scope}${check.ok ? "" : " — " + check.errors.join(" | ")}`,
     );
   }
 }
