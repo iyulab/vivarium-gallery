@@ -19,7 +19,7 @@
 1. 각 턴의 변경이 승인된 changeset apply 로만 반영된다 (exhausted 불산입).
 2. 턴 3 apply 후 게이트: 체크포인트 = 턴 2 apply 직후 상태.
 3. 실행 1회의 아카이브를 `runs/<yyyymmdd>-<model>/`에 남긴다
-   (archive-run.ts + screenshot). `rollback.json` 필수.
+   (archive-run.ts — 스크린샷은 `--screenshot` 필수 입력). `rollback.json` 필수.
 
 ## 결정적 검증
 

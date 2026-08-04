@@ -23,7 +23,7 @@
 
 1. 턴 1이 승인된 changeset apply 로만 반영 (exhausted 턴은 불산입).
 2. 롤백 게이트가 `facetsRestored: true` 를 포함해 PASS.
-3. `runs/<yyyymmdd>-<model>/` 아카이브 (archive-run.ts + screenshot).
+3. `runs/<yyyymmdd>-<model>/` 아카이브 (archive-run.ts — 스크린샷은 `--screenshot` 필수 입력).
 4. **실모델 판정**: 결정적 scripted 경로의 PASS 는 배관이 성립한다는 증거일 뿐,
    *모델이 3-facet 변경을 저작할 수 있다*는 증거가 **아니다**. 그 판정은 실모델
    run 에서만 나온다 — 아래 §마찰 참조.

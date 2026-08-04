@@ -17,7 +17,8 @@
  * 데이터로 렌더되는 정적 표본이지, 라이브 시스템의 대체가 아니다.
  *
  * Usage: node archive-run.ts --exhibit <name> --label <model-label>
- *          [--base http://localhost:8890] [--rollback <rollback.json>]
+ *          --screenshot <png> [--base http://localhost:8890]
+ *          [--rollback <rollback.json>]
  */
 
 import { readFileSync, writeFileSync, mkdirSync, copyFileSync, existsSync } from "node:fs";

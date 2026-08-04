@@ -17,7 +17,7 @@
 
 1. 각 턴이 승인된 changeset apply 로만 반영 (exhausted 턴은 불산입).
 2. 턴 4 apply 후 게이트: 체크포인트 = 턴 3 apply 직후 상태.
-3. `runs/<yyyymmdd>-<model>/` 아카이브 (archive-run.ts + screenshot).
+3. `runs/<yyyymmdd>-<model>/` 아카이브 (archive-run.ts — 스크린샷은 `--screenshot` 필수 입력).
 
 ## 상호작용 기대 (마운트 이후 판정 — `render-check`)
 
