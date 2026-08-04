@@ -1,0 +1,17 @@
+{
+  "gate": "rollback-v1",
+  "target": "contacts",
+  "sessionId": "49f5e2a24fe1",
+  "fingerprint": "sha256:e8e723359a8dc4bdcda88f7ec23281e08fa23c774258ab37b1c1334d2a3dbeff",
+  "checks": {
+    "rolledBack": true,
+    "byteIdentical": true,
+    "lineageConsistent": true,
+    "reapplied": true,
+    "facetsRestored": true
+  },
+  "detail": {},
+  "reappliedSessionId": "859c0b5f2e6a",
+  "passed": true,
+  "verifiedAt": "2026-08-04T10:58:15.329Z"
+}

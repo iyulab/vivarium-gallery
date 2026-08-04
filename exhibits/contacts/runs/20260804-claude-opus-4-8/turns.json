@@ -1,0 +1,89 @@
+{
+  "history": {
+    "session": {
+      "sessionId": "gallery:contacts",
+      "turns": 2,
+      "provider": "anthropic:claude-opus-4-8",
+      "strategy": "plan-then-generate@0",
+      "knowledgeSources": [
+        "contacts-catalog"
+      ]
+    },
+    "history": [
+      {
+        "turn": 1,
+        "intent": "팩스는 더 이상 쓰지 않습니다. 연락처에서 팩스 번호를 폐기해 주세요.",
+        "status": "exhausted",
+        "fingerprint": null,
+        "attempts": 3
+      },
+      {
+        "turn": 2,
+        "intent": "이름 필드를 fullName 으로 바꿔 주세요. 표에서도 같은 값이 계속 보여야 합니다.",
+        "status": "validated",
+        "fingerprint": "sha256:e8e723359a8dc4bdcda88f7ec23281e08fa23c774258ab37b1c1334d2a3dbeff",
+        "attempts": 1
+      }
+    ]
+  },
+  "metrics": {
+    "turns": [
+      {
+        "turn": 1,
+        "endpoint": "session",
+        "status": "exhausted",
+        "latencyMs": 38827,
+        "attempts": 3,
+        "artifactBytes": null,
+        "artifactLines": null,
+        "providerCalls": [
+          {
+            "latencyMs": 5978,
+            "inputTokens": 1360,
+            "outputTokens": 340
+          },
+          {
+            "latencyMs": 6833,
+            "inputTokens": 1379,
+            "outputTokens": 586
+          },
+          {
+            "latencyMs": 10017,
+            "inputTokens": 1860,
+            "outputTokens": 791
+          },
+          {
+            "latencyMs": 15991,
+            "inputTokens": 1506,
+            "outputTokens": 1304
+          }
+        ],
+        "inputTokens": 6105,
+        "outputTokens": 3021
+      },
+      {
+        "turn": 2,
+        "endpoint": "refine",
+        "status": "validated",
+        "latencyMs": 14647,
+        "attempts": 1,
+        "artifactBytes": 0,
+        "artifactLines": 0,
+        "providerCalls": [
+          {
+            "latencyMs": 8293,
+            "inputTokens": 1362,
+            "outputTokens": 523
+          },
+          {
+            "latencyMs": 6353,
+            "inputTokens": 1509,
+            "outputTokens": 344
+          }
+        ],
+        "inputTokens": 2871,
+        "outputTokens": 867
+      }
+    ]
+  }
+}
