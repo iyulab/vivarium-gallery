@@ -13,7 +13,13 @@
  * that page — the product's storefront — said "not released yet" while the
  * repository said otherwise, and no gate compared the two.
  *
- * Four axes:
+ * The fifth axis has the same origin, one layer down: the same readme pointed
+ * at documentation the package does not carry, so the link resolved to nothing
+ * once installed. The registry web page hid it by rewriting relative links
+ * against the repository — what broke was the consumer reading the installed
+ * package, which is also what a tool or an agent reads.
+ *
+ * Five axes:
  *   1. Registry freshness — for each @vivariumjs dependency: the registry
  *      "latest" must satisfy the declared range (else a fresh consumer
  *      cannot install at all), and publish lag (source version ahead of the
@@ -39,6 +45,11 @@
  *      gate nobody reads. The message says whether a pending release exists
  *      to carry the correction, because when source and registry sit at the
  *      same version the correction has nothing to ride on.
+ *   5. Documentation reach — every relative link in the readme about to be
+ *      published must resolve to a file the package actually carries, as
+ *      `npm pack --dry-run` reports it. This one FAILS rather than warns: it
+ *      describes the repository, not the registry, so it is fixable before the
+ *      release rather than a fact already in a consumer's hands.
  *
  * Zero dependencies; requires network access to registry.npmjs.org.
  * Usage: node host/tools/verify-consumption.ts [--strict]
@@ -305,6 +316,61 @@ for (const [name] of vivariumDeps) {
   warnPublished(
     `${name}: DOC-LAG — published README differs from the repository (${differing} of ${height} lines, first at line ${firstDiff}); ${carrier}`,
   );
+}
+
+// ── Axis 5: documentation reach ────────────────────────────────────────────
+console.log("# axis 5 — documentation reach");
+
+/** Markdown link targets, minus the ones that never leave the document. */
+function relativeLinkTargets(markdown: string): string[] {
+  const targets = new Set<string>();
+  for (const m of markdown.matchAll(/\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
+    const raw = m[1];
+    if (/^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(raw)) continue;
+    const path = raw.split("#")[0];
+    if (path !== "") targets.add(path);
+  }
+  return [...targets];
+}
+
+for (const [name] of vivariumDeps) {
+  const srcPath = SOURCE_PATHS[name];
+  if (!srcPath || !existsSync(srcPath)) {
+    console.log(`info - ${name}: source checkout absent, doc reach check n/a`);
+    continue;
+  }
+  const pkgDir = dirname(srcPath);
+  const repoReadme = join(pkgDir, "README.md");
+  if (!existsSync(repoReadme)) continue; // axis 4 already reported this
+
+  // npm itself is the authority on what ships — `files` plus the entries npm
+  // always adds. Scripts are skipped: this asks what is packed, not how it is built.
+  const packed = npm(["pack", "--dry-run", "--json", "--ignore-scripts"], pkgDir);
+  let shipped: string[];
+  try {
+    const manifest = JSON.parse(packed.stdout.trim()) as Array<{ files?: Array<{ path?: string }> }>;
+    shipped = (manifest[0]?.files ?? []).map((f) => (f.path ?? "").replace(/\\/g, "/"));
+    if (shipped.length === 0) throw new Error("empty file list");
+  } catch {
+    fail(`${name}: cannot determine which files the package ships (npm pack --dry-run exit ${packed.status})`);
+    continue;
+  }
+
+  const unreachable = relativeLinkTargets(readFileSync(repoReadme, "utf8")).filter((target) => {
+    const normalized = target.replace(/\\/g, "/").replace(/^\.\//, "");
+    if (normalized.startsWith("../")) return true; // leaves the package outright
+    const asDir = normalized.endsWith("/") ? normalized : `${normalized}/`;
+    return !shipped.some((f) => f === normalized || f.startsWith(asDir));
+  });
+
+  if (unreachable.length === 0) {
+    ok(`${name}: every relative README link resolves inside the published package`);
+  } else {
+    fail(
+      `${name}: README links to ${unreachable.length} path(s) the package does not carry — ` +
+        `${unreachable.join(", ")}; a consumer reading the installed package follows them to nothing`,
+    );
+  }
 }
 
 // ── summary ────────────────────────────────────────────────────────────────
