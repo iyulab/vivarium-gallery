@@ -74,7 +74,7 @@ open http://localhost:8890/host/index.html
 **전부 한 번에 — 이것이 CI 가 돌리는 것과 같은 명령이다:**
 
 ```bash
-node host/tools/run-gates.ts            # 기대: run-gates: 4/4 gates passed
+node host/tools/run-gates.ts            # 기대: run-gates: 5/5 gates passed
 node host/tools/run-gates.ts --list     # 게이트 목록과 각자 필요한 전시물
 node host/tools/run-gates.ts --gate smoke-refusal   # 하나만
 ```
@@ -111,6 +111,11 @@ node host/smoke-refusal.ts # 기대: smoke-refusal: 9/9 PASS
 
 # 승인 전 검토 표면 — jsdom 판정(브라우저 불필요). 같은 전제(--exhibit inventory)
 node host/smoke-review.ts  # 기대: smoke-review: 5/5 PASS
+
+# 파괴성 축 — 전제: 호스트 서버가 --exhibit contacts 로 기동
+#   성공의 형태가 턴마다 다르다: 적용되고 **롤백이 잃은 값을 되돌려야** 성공인 턴,
+#   **거부되어야** 성공인 턴, 통과하되 **기록에 남아야** 성공인 턴.
+node host/smoke-destructive.ts # 기대: smoke-destructive: 8/8 PASS
 
 # 소비 재현성 (레지스트리 신선도·클린룸 설치)
 node host/tools/verify-consumption.ts
@@ -153,9 +158,16 @@ node host/tools/verify-consumption.ts
 | [landing-page](exhibits/landing-page/) | landing-page | build·surgical·theme·restructure | opus·qwen 완주 각 1건 (모델 축 비교 — qwen 날조 관찰 1건) |
 | [form-survey](exhibits/form-survey/) | form-survey | build·delete·bulk·i18n | opus 완주 1건 |
 | [inventory](exhibits/inventory/) | inventory | **facet 축** — 스키마+데이터+UI 동반 | `smoke-3facet` 8/8 · `smoke-refusal` 9/9 · `smoke-review` 5/5 · 실모델 run 2건 (**둘 다 미완주** — 아래) |
+| [contacts](exhibits/contacts/) | contacts | **파괴성 축** — 제거·타입 변경·기존 데이터를 위반하는 제약 | `smoke-destructive` 8/8 · 실모델 run 0건 (아래) |
 
 세션 축은 실측 종결 — 재시작 후 세션 계보가 단절되는 갭을 확인했고,
 업스트림 재수화 원칙으로 이어졌다.
+
+`contacts` 는 도메인을 늘리려고 세운 것이 **아니다**. 갤러리가 시험한 스키마 연산이
+`field.add` 하나, 데이터 연산이 `update` 하나뿐이었다는 실측이 이 전시물을 낳았다 —
+즉 *"변경은 검토 가능하고 되돌릴 수 있다"* 가 **가장 안전한 연산에서만** 증명돼
+있었다. 실모델 run 은 아직 없다: 이 전시물의 현재 산출은 게이트이고, 실모델이
+파괴적 턴을 어떻게 저작하는지(특히 *"지워도 되는가"* 를 되묻는지)는 열린 관측이다.
 
 `inventory` 는 다른 셋과 목적이 다르다: 필드 하나를 추가하는 변경이 **스키마·데이터·
 UI 세 facet 을 함께** 움직이는지를 시험한다. 결정적 경로는 통과하지만, **실모델 2종은

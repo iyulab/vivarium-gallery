@@ -38,6 +38,7 @@ const GATES = [
   { name: "smoke-3facet", script: "host/smoke-3facet.ts", exhibit: "inventory" },
   { name: "smoke-refusal", script: "host/smoke-refusal.ts", exhibit: "inventory" },
   { name: "smoke-review", script: "host/smoke-review.ts", exhibit: "inventory" },
+  { name: "smoke-destructive", script: "host/smoke-destructive.ts", exhibit: "contacts" },
 ] as const;
 
 const STAGE_HOST_PORT = 8891;
