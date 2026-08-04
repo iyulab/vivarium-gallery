@@ -38,6 +38,32 @@ function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+/**
+ * 스크린샷이 없는 아카이브 run 을 열거한다 — `exhibits/<name>/runs/<run>` 형태.
+ *
+ * 인덱스 생성기가 이 사실을 **조용히** 처리하면(이미지 카드만 빠지고 아무도
+ * 아무 말도 하지 않으면) 아카이브가 불완전하다는 것을 아무도 모른다. 생성기와
+ * 게이트가 같은 목록을 보게 해서, 화면에 표기되는 것과 판정되는 것이 갈리지
+ * 않도록 한다.
+ */
+export function runsWithoutScreenshot(): string[] {
+  const exhibitsDir = join(galleryRoot, "exhibits");
+  const missing: string[] = [];
+  if (!existsSync(exhibitsDir)) return missing;
+  for (const name of readdirSync(exhibitsDir).sort()) {
+    const runsDir = join(exhibitsDir, name, "runs");
+    if (!existsSync(runsDir)) continue;
+    for (const runName of readdirSync(runsDir).sort()) {
+      const runPath = join(runsDir, runName);
+      if (!statSync(runPath).isDirectory()) continue;
+      if (!existsSync(join(runPath, "screenshot.png"))) {
+        missing.push(`exhibits/${name}/runs/${runName}`);
+      }
+    }
+  }
+  return missing;
+}
+
 export interface BuildIndexOptions {
   /**
    * Deploy timestamp to show in the footer. Omit for the committed artifact —
@@ -101,14 +127,19 @@ export async function buildIndex(options: BuildIndexOptions = {}): Promise<strin
           .map((r) => {
             const base = `../exhibits/${name}/runs/${r.dir}`;
             const badgeClass = r.gate === "PASS" ? "pass" : r.gate === "FAIL" ? "fail" : "none";
+            // 스크린샷이 없으면 이미지 자리를 비우는 대신 **없다고 적는다** —
+            // 조용한 강등은 불완전한 아카이브를 완전한 것처럼 보이게 한다.
             const shot = r.hasScreenshot
               ? `<a href="${base}/final.html"><img src="${base}/screenshot.png" alt="${escapeHtml(r.label)} screenshot" loading="lazy" /></a>`
               : "";
+            const shotBadge = r.hasScreenshot
+              ? ""
+              : `\n    <span class="badge none" data-screenshot="missing">스크린샷 없음</span>`;
             return `<article class="run">
   ${shot}
   <div class="run-meta">
     <b>${escapeHtml(r.label)}</b>
-    <span class="badge ${badgeClass}">롤백 게이트 ${r.gate}</span>
+    <span class="badge ${badgeClass}">롤백 게이트 ${r.gate}</span>${shotBadge}
     <span>${r.turnCount === null ? "" : `${r.turnCount}턴`}</span>
     <nav><a href="${base}/final.html">최종 결과</a> · <a href="${base}/RUN.md">RUN.md</a> · <a href="${base}/turns.json">turns</a></nav>
   </div>
@@ -161,6 +192,14 @@ ${sections.join("\n")}
 `;
   const outPath = join(galleryRoot, "index", "gallery.html");
   writeFileSync(outPath, html);
+
+  // 산출물에 표기하는 것과 별개로, 돌린 사람에게도 말한다 — 인덱스를 다시
+  // 열어 보지 않는 경로(CI·배포 워크플로)에서는 이 출력이 유일한 신호다.
+  const missing = runsWithoutScreenshot();
+  if (missing.length > 0) {
+    console.warn(`build-index: ${missing.length} archived run(s) have no screenshot.png:`);
+    for (const dir of missing) console.warn(`  ${dir}`);
+  }
   return outPath;
 }
 

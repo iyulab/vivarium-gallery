@@ -137,7 +137,11 @@ node host/tools/verify-consumption.ts
   `exhibits/<name>/runs/<yyyymmdd>-<label>/`로 아카이브: turns.json ·
   artifacts/ · rollback.json · RUN.md · **final.html**(아티팩트 소스 +
   capability 스냅샷 인라인 — 서버·키 없이 열람 가능한 자립형 뷰어).
-  screenshot.png 은 실행 주체가 같은 디렉터리에 캡처해 두는 관례.
+  screenshot.png 은 **`--screenshot` 로 넘기는 필수 입력**이다 — 관례로
+  두었을 때 실제로 빠졌고(아카이브된 run 10건 중 3건), 인덱스가 그것을 조용히
+  넘겨 아무도 알아채지 못했다. 아카이브 시점은 아직 되돌릴 수 있는 자리라
+  거기서 막는다. 이미 굳은 run 은 막지 않고 **적는다** — 인덱스가 그 카드에
+  "스크린샷 없음"을 표기하고, 생성기가 실행 시 목록을 함께 출력한다.
 
 ## 전시물 목록
 

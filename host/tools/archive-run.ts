@@ -9,7 +9,7 @@
  *                    인라인 — API 키·서버 없이 브라우저로 열람 가능
  *   rollback.json  — 롤백 공통 게이트 기록 (rollback-gate.ts 산출물 복사)
  *   RUN.md         — 실행 요약 (전시물·모델·턴 비용 표·게이트 판정)
- *   screenshot.png — 실행 주체가 별도 캡처해 같은 디렉터리에 두는 관례
+ *   screenshot.png — `--screenshot` 로 넘긴 캡처 (**필수 입력**)
  *
  * capability 스냅샷: exhibit 모듈을 서버 측에서 import 해 각 handler를
  * 아카이브 시점에 1회 invoke 한 결과의 JSON. mount 계약(root, api.invoke)
@@ -36,8 +36,29 @@ const exhibitName = arg("--exhibit");
 const label = arg("--label");
 const base = arg("--base") ?? "http://localhost:8890";
 const rollbackPath = arg("--rollback");
+const screenshotPath = arg("--screenshot");
 if (!exhibitName || !label || !/^[a-z0-9-]+$/.test(exhibitName)) {
-  console.error("Usage: node archive-run.ts --exhibit <name> --label <model-label> [--base url] [--rollback <rollback.json>]");
+  console.error(
+    "Usage: node archive-run.ts --exhibit <name> --label <model-label> --screenshot <png> [--base url] [--rollback <rollback.json>]",
+  );
+  process.exit(2);
+}
+
+// 스크린샷은 관례가 아니라 아카이브의 입력이다. 관례로 두었을 때 실제로
+// 빠졌고, 그것을 인덱스가 조용히 넘겨 아무도 알아채지 못했다. 여기서 막는
+// 이유는 이 시점이 **아직 되돌릴 수 있는 자리**이기 때문이다 — run 이 파일로
+// 굳은 뒤에는 그 화면이 무엇이었는지 아무도 다시 만들 수 없다.
+if (!screenshotPath) {
+  console.error(
+    "archive-run: --screenshot <png> is required.\n" +
+      "  A run that cannot be seen is not an exhibit. Capture the live result\n" +
+      "  before archiving; an unfinished run is captured in whatever state it\n" +
+      "  reached, and that state is the record.",
+  );
+  process.exit(2);
+}
+if (!existsSync(screenshotPath)) {
+  console.error(`archive-run: screenshot not found at ${screenshotPath}`);
   process.exit(2);
 }
 
@@ -82,6 +103,9 @@ for (const [artifactId, content] of Object.entries(artifacts)) {
 if (rollbackPath && existsSync(rollbackPath)) {
   copyFileSync(rollbackPath, join(runDir, "rollback.json"));
 }
+
+// ── screenshot.png ───────────────────────────────────────────────────────
+copyFileSync(screenshotPath, join(runDir, "screenshot.png"));
 
 // ── final.html — 자립형 뷰어 ─────────────────────────────────────────────
 // JSON 문자열의 `<` 를 < 로 이스케이프해 </script> 조기 종결을 차단.
@@ -173,7 +197,7 @@ ${rollbackNote}
 - \`artifacts/\` — 최종 아티팩트 원본
 - \`turns.json\` — 계보 + 턴 비용 원장
 - \`rollback.json\` — 게이트 기록
-- \`screenshot.png\` — 실행 주체가 캡처 (없으면 미캡처)
+- \`screenshot.png\` — 실행 화면 캡처 (아카이브 필수 입력)
 `,
 );
 
