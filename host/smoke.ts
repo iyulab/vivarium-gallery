@@ -36,7 +36,7 @@ const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:8890";
 const TARGET = exhibit.target;
 const ARTIFACT_ID = exhibit.primaryArtifactId;
 const SEED_CONTENT = exhibit.artifacts[ARTIFACT_ID];
-const TOTAL = 16;
+const TOTAL = 17;
 
 // Phase 6.e turn-cost instrumentation gate: every agent turn this smoke
 // drives must land in GET /agent/metrics (assertion 11).
@@ -620,6 +620,78 @@ async function main(): Promise<void> {
   }
 
   const skipNote = skipCount > 0 ? ` + ${skipCount} SKIP (agent ${agentVersion} < 0.0.2)` : "";
+  // ── 17. 자리 선언 — 총량이 잡는지 여부는 **화면 크기**가 정한다 ──────────
+  //
+  // 단언 14 는 기대 capability 가 불렸는가를 본다. 그런데 capability 를 제대로
+  // 부르고 **응답의 필드 이름만 틀리면** 값이 전부 대체 표기가 되고, 라벨과 껍데기가
+  // 텍스트 총량을 채운다. 이 전시물에서 그 변형은 **19자**로 하한(20)에 **한 글자**
+  // 모자라 총량 판정이 잡는다 — 옳아서가 아니라 **화면이 작아서**다.
+  //
+  // 그래서 카드를 하나 더 가진 변형을 함께 파생한다. 값이 전부 빠진 것은 같은데
+  // 총량은 하한을 넘고, 그때 남는 판정은 **자리 선언**뿐이다. 두 변형 다 시드에서
+  // 파생하며 치환 여부를 먼저 확인한다(단언 16 과 같은 규율).
+  n = 17;
+  try {
+    const { checkRender } = await import("./tools/render-check.ts");
+    const ORDERS_LINE = '    { label: "Orders", value: byId.orders?.value ?? "n/a" },';
+    const emptied = SEED_CONTENT.replaceAll("?.value ??", "?.amount ??");
+    const grown = emptied.replace(
+      ORDERS_LINE.replace("?.value ??", "?.amount ??"),
+      ORDERS_LINE.replace("?.value ??", "?.amount ??") +
+        "\n" +
+        '    { label: "Refunds", value: byId.refunds?.amount ?? "n/a" },',
+    );
+    if (emptied === SEED_CONTENT || grown === emptied) {
+      throw new Error("fixture derivation failed — the seed no longer contains the substituted text");
+    }
+    const expectFilled = [{ selector: "section p", placeholder: "n/a" }];
+
+    // 대조군 먼저 — 시드가 통과하지 않으면 아래 실패는 아무것도 구별하지 않는다.
+    const good = await checkRender(SEED_CONTENT, exhibit.capabilities, {
+      expectInvokes: ["dashboard.metrics"],
+      expectFilled,
+    });
+    if (!good.ok) throw new Error(`대조군(시드)이 떨어졌다 — ${good.errors.join(" | ")}`);
+    if (good.filled[0]?.total !== 2 || good.filled[0]?.blank !== 0) {
+      throw new Error(`대조군 판독이 예상과 다르다: ${JSON.stringify(good.filled)}`);
+    }
+
+    // 작은 화면: 총량이 **간신히** 잡는다. 그 여유가 이 단언이 기록하는 값이다.
+    const smallMountOnly = await checkRender(emptied, exhibit.capabilities, {
+      expectInvokes: ["dashboard.metrics"],
+    });
+    if (smallMountOnly.ok || smallMountOnly.textLength >= 20) {
+      throw new Error(
+        `전제가 바뀌었다 — 작은 화면에서 총량이 더 이상 잡지 못하거나 이미 하한을 넘는다: ` +
+          `text=${smallMountOnly.textLength} ok=${smallMountOnly.ok}`,
+      );
+    }
+
+    // 카드 하나만 늘면 총량은 통과한다 — 값은 여전히 전부 빠져 있는데.
+    const grownMountOnly = await checkRender(grown, exhibit.capabilities, {
+      expectInvokes: ["dashboard.metrics"],
+    });
+    if (!grownMountOnly.ok) {
+      throw new Error(
+        `전제가 깨졌다 — 늘어난 화면도 총량이 잡는다면 이 단언이 말하려는 것이 없다: ${grownMountOnly.errors.join(" | ")}`,
+      );
+    }
+    const grownFilled = await checkRender(grown, exhibit.capabilities, {
+      expectInvokes: ["dashboard.metrics"],
+      expectFilled,
+    });
+    if (grownFilled.ok || grownFilled.filled[0]?.blank !== 3) {
+      throw new Error(`자리 선언이 값 실종을 잡지 못했다: ${JSON.stringify(grownFilled.filled)}`);
+    }
+    ok(
+      n,
+      `자리 선언 — 값이 전부 빠진 화면을 총량은 작을 때만 잡고(text=${smallMountOnly.textLength}<20) ` +
+        `카드 하나만 늘면 통과시킨다(text=${grownMountOnly.textLength}). 자리 선언은 둘 다 잡는다 (시드는 통과 — 대조군)`,
+    );
+  } catch (err) {
+    fail(n, "자리 선언 — 값이 전부 빠진 화면을 총량은 작을 때만 잡는다 (시드는 통과 — 대조군)", err);
+  }
+
   console.log(`smoke: ${passCount}/${TOTAL - skipCount} PASS${skipNote}`);
 }
 

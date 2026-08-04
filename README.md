@@ -92,10 +92,11 @@ node host/tools/run-gates.ts --gate smoke-refusal   # 하나만
 
 ```bash
 # 결정적 회귀 (scripted provider 필수 — MODEL_PROVIDER 미설정으로 서버 기동)
-node host/smoke.ts        # 기대: smoke: 16/16 PASS (12 = 롤백 공통 게이트,
+node host/smoke.ts        # 기대: smoke: 17/17 PASS (12 = 롤백 공통 게이트,
                           #        13 = 정적 인덱스 생성(결정적), 14 = 렌더 검증,
                           #        15 = 재생성 후 워킹트리 청결,
-                          #        16 = 마운트 이후 상호작용 판정)
+                          #        16 = 마운트 이후 상호작용 판정,
+                          #        17 = 자리 선언 — 총량이 잡는지는 화면 크기가 정한다)
                           # 전제: 호스트 서버가 --exhibit dashboard 로 기동
 
 # 3-facet 동반 변경 게이트 — 전제: 호스트 서버가 --exhibit inventory 로 기동
@@ -142,7 +143,11 @@ node host/tools/verify-consumption.ts
     하나가 정확히 그 상태를 만들었다(스키마를 개명하면서 데이터를 두고 가자
     이름 칸이 세 행 모두 빈 칸 표기가 됐고 모든 게이트가 초록이었다). 턴별
     `expectFilled` 로 자리를 선언하면 그것을 판정하며, 선언이 없으면 출력이
-    `(no filled regions declared)` 라고 말한다.
+    `(no filled regions declared)` 라고 말한다. **총량이 그것을 대신하지 못하는
+    이유는 화면 크기에 있다** — `smoke` 단언 17 이 그것을 실측으로 고정한다:
+    값이 전부 빠진 대시보드를 텍스트 하한은 19자에서 잡지만, 카드 하나만 늘면
+    29자가 되어 통과시킨다. 판정의 유효 범위가 **옳음이 아니라 크기**로 정해지는
+    자리이고, 자리 선언은 둘 다 잡는다.
 - `host/tools/rollback-gate.ts` — 롤백 공통 게이트(설계 §3) 4단계 판정:
   롤백 → 체크포인트 바이트 일치 → ledger 계보 정합 → 재적용. 결과는
   `rollback.json` 형식. 라이브러리 + CLI 겸용.
@@ -160,7 +165,7 @@ node host/tools/verify-consumption.ts
 
 | 이름 | 도메인 | 변경 유형 축 담당 | 상태 (runs/ 아카이브 참조) |
 | --- | --- | --- | --- |
-| [dashboard](exhibits/dashboard/) | dashboard | build·surgical·bulk | `smoke` 16/16 상시 게이트 · opus run 4건 |
+| [dashboard](exhibits/dashboard/) | dashboard | build·surgical·bulk | `smoke` 17/17 상시 게이트 · opus run 4건 |
 | [landing-page](exhibits/landing-page/) | landing-page | build·surgical·theme·restructure | opus·qwen 완주 각 1건 (모델 축 비교 — qwen 날조 관찰 1건) |
 | [form-survey](exhibits/form-survey/) | form-survey | build·delete·bulk·i18n | opus 완주 1건 |
 | [inventory](exhibits/inventory/) | inventory | **facet 축** — 스키마+데이터+UI 동반 | `smoke-3facet` 8/8 · `smoke-refusal` 9/9 · `smoke-review` 5/5 · 실모델 run 2건 (**둘 다 미완주** — 아래) |
