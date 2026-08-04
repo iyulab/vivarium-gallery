@@ -93,6 +93,10 @@ app.MapPost("/targets/{target}/changesets", async (string target, HttpRequest re
         }
         catch (InvalidOperationException e)
         {
+            // The branch exists by now and nothing will ever adopt it — a refused
+            // document has no session. `discard` is declared always safe (staging
+            // never touches live state), so releasing it here is the whole cleanup.
+            await adapter.DiscardAsync(branch.BranchRef);
             return AdapterRefused(e);
         }
         var sessionId = Guid.NewGuid().ToString("n")[..12];
