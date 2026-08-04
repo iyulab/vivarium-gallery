@@ -93,7 +93,7 @@ node host/tools/run-gates.ts --gate smoke-refusal   # 하나만
 ```bash
 # 결정적 회귀 (scripted provider 필수 — MODEL_PROVIDER 미설정으로 서버 기동)
 node host/smoke.ts        # 기대: smoke: 14/14 PASS (12 = 롤백 공통 게이트,
-                          #        13 = 정적 인덱스 생성, 14 = 렌더 검증)
+                          #        13 = 정적 인덱스 생성(결정적), 14 = 렌더 검증)
                           # 전제: 호스트 서버가 --exhibit dashboard 로 기동
 
 # 3-facet 동반 변경 게이트 — 전제: 호스트 서버가 --exhibit inventory 로 기동
@@ -151,6 +151,10 @@ UI 세 facet 을 함께** 움직이는지를 시험한다. 결정적 경로는 �
 [index/gallery.html](index/gallery.html), `node index/build-index.ts`로 재생성).
 Pages 는 배포 시 `exhibits/` 에서 인덱스를 **재생성**하므로, run 을 추가하고
 build-index 를 깜빡해도 사이트에는 반영됩니다.
+
+커밋되는 `index/gallery.html` 은 **결정적**입니다 — 같은 입력이면 같은 바이트라,
+게이트를 돌려도 워킹트리가 더러워지지 않습니다. 배포 시각은 Pages 워크플로가
+`--generated-at` 으로 주입하며 그 산출물은 커밋되지 않습니다.
 
 ## 이 샘플이 발견한 것
 

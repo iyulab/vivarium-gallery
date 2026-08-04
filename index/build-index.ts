@@ -5,7 +5,18 @@
  * final.html 이 자립형 뷰어이므로 인덱스도 정적 링크만 필요하다.
  *
  * Library + CLI 겸용 (smoke 가 buildIndex() 를 결정적으로 단언한다).
- * Usage: node index/build-index.ts
+ * Usage: node index/build-index.ts [--generated-at <iso>]
+ *
+ * **산출물은 결정적이다** — 같은 입력이면 같은 바이트다. 이 파일은 커밋되고,
+ * 게이트를 돌 때마다 재생성되므로, 생성 시각 같은 입력 무관 값을 박으면 게이트를
+ * 한 번 돌 때마다 워킹트리가 더러워진다. 커밋 직전에 게이트를 돌리는 것이 이
+ * 리포의 관례이니, 그때마다 무의미한 diff 를 사람이 커밋하거나 되돌려야 한다 —
+ * "게이트를 돌렸더니 커밋할 것이 생겼다"는 잘못된 신호다. 입력이 같으면 바이트가
+ * 같아야 한다는 것은 이 패밀리가 fingerprint·canonicalization 에서 이미 지키는
+ * 규율이기도 하다.
+ *
+ * 배포 시각이 필요하면 `--generated-at` 으로 주입한다 — Pages 워크플로가 배포
+ * 시점에 넘기며, 그 산출물은 커밋되지 않는다.
  */
 
 import { readdirSync, readFileSync, writeFileSync, existsSync, statSync } from "node:fs";
@@ -27,7 +38,16 @@ function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-export async function buildIndex(): Promise<string> {
+export interface BuildIndexOptions {
+  /**
+   * Deploy timestamp to show in the footer. Omit for the committed artifact —
+   * the default output carries no clock reading, so it is byte-identical for
+   * byte-identical inputs.
+   */
+  generatedAt?: string;
+}
+
+export async function buildIndex(options: BuildIndexOptions = {}): Promise<string> {
   const exhibitsDir = join(galleryRoot, "exhibits");
   const names = readdirSync(exhibitsDir).filter((n) => {
     try {
@@ -135,7 +155,7 @@ export async function buildIndex(): Promise<string> {
   <h1>vivarium gallery</h1>
   <p class="sub">채팅 지시로 런타임 UI 를 변경·롤백한 실행들의 아카이브 — 각 run 의 최종 결과는 서버·키 없이 열람 가능한 자립형 페이지입니다.</p>
 ${sections.join("\n")}
-  <footer>생성: build-index.ts · ${new Date().toISOString()}</footer>
+  <footer>생성: build-index.ts${options.generatedAt ? ` · ${escapeHtml(options.generatedAt)}` : ""}</footer>
 </body>
 </html>
 `;
@@ -147,5 +167,7 @@ ${sections.join("\n")}
 // ── CLI ──────────────────────────────────────────────────────────────────
 const entry = process.argv[1]?.replace(/\\/g, "/").split("/").pop();
 if (entry && import.meta.url.endsWith(entry)) {
-  console.log(`generated: ${await buildIndex()}`);
+  const at = process.argv.indexOf("--generated-at");
+  const generatedAt = at === -1 ? undefined : process.argv[at + 1];
+  console.log(`generated: ${await buildIndex({ generatedAt })}`);
 }

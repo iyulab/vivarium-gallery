@@ -455,9 +455,18 @@ async function main(): Promise<void> {
     if (missing.length > 0) {
       throw new Error(`gallery.html missing exhibit section(s): ${missing.join(", ")}`);
     }
-    ok(n, `build-index → gallery.html 생성, 전시물 ${names.length}종 섹션 전부 등재`);
+    // 결정성: 이 게이트는 커밋되는 파일을 재생성한다. 입력이 그대로인데 바이트가
+    // 달라지면 게이트를 돌 때마다 워킹트리가 더러워지고, 커밋 직전에 게이트를
+    // 돌리는 관례상 그 diff 를 사람이 매번 커밋하거나 되돌려야 한다. 시각 같은
+    // 입력 무관 값이 다시 새어 들어오면 여기서 잡힌다.
+    await buildIndex();
+    const again = readFileSync(outPath, "utf8");
+    if (again !== html) {
+      throw new Error("build-index is not deterministic — re-running it changed the committed artifact");
+    }
+    ok(n, `build-index → gallery.html 생성(결정적), 전시물 ${names.length}종 섹션 전부 등재`);
   } catch (err) {
-    fail(n, "build-index → gallery.html 생성, 전 전시물 섹션 등재", err);
+    fail(n, "build-index → gallery.html 생성(결정적), 전 전시물 섹션 등재", err);
   }
 
   // ── 14. 렌더 검증 — 정상 시드 통과 / 기대-invoke 불일치·실행 예외 감지 ──
