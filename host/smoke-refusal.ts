@@ -10,25 +10,30 @@
  * 동시 편집자/낡은 제안 시나리오이고, ⑬ 이 말하는 TOCTOU 창 그 자체다.
  * 호스트에 새 표면을 만들지 않는다.
  *
- * 마지막 두 단언은 **거부가 일어나지 않는 것**을 판정한다 — 드리프트 게이트가
+ * 단언 5·6 은 **거부가 일어나지 않는 것**을 판정한다 — 드리프트 게이트가
  * changeset 이 스스로 선언한 baseState 항목만 검사하고, 저작자(에이전트)는
  * `ui-artifact` 항목만 발행하므로, **스키마·데이터가 발밑에서 바뀌어도 아무도
  * 눈치채지 못한다.** 통과가 곧 결함인 단언이다.
+ *
+ * 단언 7·8 은 **거부가 무엇으로 보이는가**를 판정한다. 거부가 크래시와 같은 코드로
+ * 나오면 소비자는 제품이 동작한 것과 망가진 것을 구별할 수 없고, 그러면 "거부되는
+ * 것이 성공인 턴"을 게이트로 쓸 수 없다. 8 은 대조군이다 — 반대편이 갈려 있지
+ * 않으면 7 은 구별 가능성을 증명하지 않는다.
  *
  * Prerequisite: stage-host (8891) + host/server.ts (8890, **--exhibit inventory**,
  * MODEL_PROVIDER 미설정).
  *
  * Usage: node host/smoke-refusal.ts
- * Exit 0 + "smoke-refusal: 6/6 PASS" on success; exit 1 otherwise.
+ * Exit 0 + "smoke-refusal: 8/8 PASS" on success; exit 1 otherwise.
  */
 
-import { addDataPatch, createChangeset, finalize } from "@vivariumjs/changeset";
+import { addDataPatch, addSchemaOp, createChangeset, finalize } from "@vivariumjs/changeset";
 import exhibit from "../exhibits/inventory/exhibit.ts";
 
 const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:8890";
 const TARGET = exhibit.target;
 const ARTIFACT_ID = exhibit.primaryArtifactId;
-const TOTAL = 6;
+const TOTAL = 8;
 /** 데이터 전용 변경이 지울 행 — 이 행이 사라진 뒤에도 낡은 제안이 통과하는지가 요점. */
 const DOOMED_SKU = "SKU-1003";
 
@@ -242,6 +247,74 @@ async function main(): Promise<void> {
       "삭제된 행을 대상으로 하는 낡은 제안이 **거부 없이 적용된다** — 드리프트 게이트는 선언된 facet 만 본다 (통과=결함)",
       err,
     );
+  }
+
+  // ── 7. 어댑터 층 거부는 크래시와 다른 코드로 나온다 ──────────────────────
+  n = 7;
+  try {
+    // well-formed 이지만 라이브 스키마에 없는 엔티티를 지목한다. 라이프사이클
+    // 게이트는 이것에 할 말이 없다 — 판정하는 것은 백엔드 어댑터이고, 그 판정은
+    // `prepare` 에서 일어난다(어댑터 계약이 거부의 문으로 지정한 자리).
+    const absent: any = finalize(
+      addSchemaOp(
+        createChangeset({
+          intent: "라이브에 없는 엔티티에 필드를 더한다",
+          producedBy: "gallery/smoke-refusal (hand-authored, absent target)",
+          createdAt: new Date().toISOString(),
+        }),
+        {
+          op: "field.add",
+          entity: "NoSuchEntity",
+          field: { name: "whenever", type: "string" },
+          explanation: "표적이 실재하지 않는다 — 어댑터가 판정할 몫이다.",
+        },
+      ),
+    );
+    const { status, json } = await raw(
+      `/stage/targets/${TARGET}/changesets`,
+      approve(absent, absent.fingerprint),
+    );
+    if (status !== 422 || json.reason !== "AdapterRefused") {
+      throw new Error(`expected 422 AdapterRefused, got ${status}: ${JSON.stringify(json)}`);
+    }
+    // 거부는 무엇을 못 찾았는지 말해야 한다 — 코드만으로는 소비자가 다시 물어야 한다.
+    if (!String(json.error ?? "").includes("NoSuchEntity")) {
+      throw new Error(`거부가 표적을 이름으로 부르지 않는다: ${JSON.stringify(json)}`);
+    }
+    ok(n, "부재 표적을 지목한 변경 → 422 AdapterRefused — 어댑터 층 거부가 자기 층을 말한다");
+  } catch (err) {
+    fail(n, "부재 표적을 지목한 변경 → 422 AdapterRefused — 어댑터 층 거부가 자기 층을 말한다", err);
+  }
+
+  // ── 8. 대조군 — 진짜 결함은 여전히 500 ─────────────────────────────────
+  n = 8;
+  try {
+    // 단언 7 만으로는 "거부가 코드를 하나 갖는다"까지만 말한다. **구별 가능성**은
+    // 반대편이 갈려 있어야 성립하므로 대조군이 판정의 절반이다: 어댑터 예외를
+    // 통째로 거부로 부르면 이 단언이 즉시 빨개진다.
+    const anything: any = finalize(
+      addDataPatch(
+        createChangeset({
+          intent: "시드된 적 없는 타깃에 말을 건다",
+          producedBy: "gallery/smoke-refusal (hand-authored, control)",
+          createdAt: new Date().toISOString(),
+        }),
+        {
+          id: "control",
+          explanation: "내용은 무관하다 — 타깃이 먼저 없다.",
+          operations: [{ op: "delete", entity: "Item", where: { field: "sku", equals: "any" } }],
+        },
+      ),
+    );
+    const { status } = await raw("/stage/targets/no-such-target/changesets", anything);
+    if (status !== 500) {
+      throw new Error(
+        `미지 타깃이 ${status} 로 나온다 — 거부와 결함의 경계가 옮겨졌으니 단언 7 과 함께 재검토할 것`,
+      );
+    }
+    ok(n, "시드된 적 없는 타깃 → 500 — 거부(422)와 결함(500)이 경계에서 갈린다 (대조군)");
+  } catch (err) {
+    fail(n, "시드된 적 없는 타깃 → 500 — 거부(422)와 결함(500)이 경계에서 갈린다 (대조군)", err);
   }
 
   console.log(

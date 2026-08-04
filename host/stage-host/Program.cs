@@ -28,6 +28,21 @@ static JsonObject ArtifactsOf(InMemoryBackendAdapter adapter, string stateRef) =
 static IResult Refused(StageRefusedException e) =>
     Results.Json(new { error = e.Message, reason = e.Reason.ToString() }, statusCode: 409);
 
+// An adapter that refuses is the product working; an adapter that faults is a
+// bug. Both leave the library as the same exception type, so mapping on the
+// type would put them under one code — which is what a 500 already did, and a
+// 500 reads as "we broke". The distinction we can make honestly is **which
+// door it came out of**: adapter-api §3 names `prepare` as the door that must
+// refuse a document it cannot execute honestly, so an exception out of that one
+// call is a refusal by contract. Every other adapter call keeps its 500.
+//
+// 409 stays the library's own verdicts (their `reason` is a library enum);
+// 422 says the lifecycle gates had no objection and the backend could not carry
+// out these instructions against the live world. The payload names the layer so
+// a stored refusal still says what judged it once the status code is gone.
+static IResult AdapterRefused(InvalidOperationException e) =>
+    Results.Json(new { error = e.Message, reason = "AdapterRefused" }, statusCode: 422);
+
 // Seed a target's live world. Sample bootstrap only — not part of the lifecycle.
 app.MapPost("/targets", async (HttpRequest request) =>
 {
@@ -71,8 +86,15 @@ app.MapPost("/targets/{target}/changesets", async (string target, HttpRequest re
     {
         var session = new ChangeSession(changeset, target, adapter, ledger);
         var branch = await session.BranchAsync();
-        await adapter.PrepareAsync(branch.BranchRef,
-            new PreparedFacets(session.Fingerprint, (JsonObject)changeset["patches"]!.DeepClone()));
+        try
+        {
+            await adapter.PrepareAsync(branch.BranchRef,
+                new PreparedFacets(session.Fingerprint, (JsonObject)changeset["patches"]!.DeepClone()));
+        }
+        catch (InvalidOperationException e)
+        {
+            return AdapterRefused(e);
+        }
         var sessionId = Guid.NewGuid().ToString("n")[..12];
         sessions[sessionId] = session;
         return Results.Json(new

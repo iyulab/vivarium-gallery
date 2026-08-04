@@ -104,8 +104,9 @@ node host/smoke-3facet.ts # 기대: smoke-3facet: 8/8 PASS
 # 거부 경로 게이트 — 같은 전제(--exhibit inventory)
 #   거부는 결함이 아니라 기능이다. 단언 1~3은 거부가 **일어나야** 통과하고,
 #   단언 5~6은 거부가 **일어나지 않는 것**을 기록한다(통과가 곧 결함 — 드리프트
-#   게이트는 changeset 이 선언한 facet 만 본다).
-node host/smoke-refusal.ts # 기대: smoke-refusal: 6/6 PASS
+#   게이트는 changeset 이 선언한 facet 만 본다). 단언 7~8은 거부가 **크래시와
+#   구별되는지**를 판정한다(422 vs 500 — 8이 대조군).
+node host/smoke-refusal.ts # 기대: smoke-refusal: 8/8 PASS
 
 # 승인 전 검토 표면 — jsdom 판정(브라우저 불필요). 같은 전제(--exhibit inventory)
 node host/smoke-review.ts  # 기대: smoke-review: 5/5 PASS
@@ -150,7 +151,7 @@ node host/tools/verify-consumption.ts
 | [dashboard](exhibits/dashboard/) | dashboard | build·surgical·bulk | `smoke` 16/16 상시 게이트 · opus run 4건 |
 | [landing-page](exhibits/landing-page/) | landing-page | build·surgical·theme·restructure | opus·qwen 완주 각 1건 (모델 축 비교 — qwen 날조 관찰 1건) |
 | [form-survey](exhibits/form-survey/) | form-survey | build·delete·bulk·i18n | opus 완주 1건 |
-| [inventory](exhibits/inventory/) | inventory | **facet 축** — 스키마+데이터+UI 동반 | `smoke-3facet` 8/8 · `smoke-refusal` 6/6 · `smoke-review` 5/5 · 실모델 run 2건 (**둘 다 미완주** — 아래) |
+| [inventory](exhibits/inventory/) | inventory | **facet 축** — 스키마+데이터+UI 동반 | `smoke-3facet` 8/8 · `smoke-refusal` 8/8 · `smoke-review` 5/5 · 실모델 run 2건 (**둘 다 미완주** — 아래) |
 
 세션 축은 실측 종결 — 재시작 후 세션 계보가 단절되는 갭을 확인했고,
 업스트림 재수화 원칙으로 이어졌다.
