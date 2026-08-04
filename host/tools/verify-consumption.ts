@@ -7,9 +7,13 @@
  * the registry served a
  * defective 0.0.1 while source had moved to 0.0.2 (publish-freshness gap),
  * and a stale local lockfile pointed at a vanished local tarball; neither
- * was detected by any gate.
+ * was detected by any gate. A later one added the fourth axis: a published
+ * package kept describing itself as pre-release long after the repository had
+ * corrected that sentence. The registry page renders the published README, so
+ * that page — the product's storefront — said "not released yet" while the
+ * repository said otherwise, and no gate compared the two.
  *
- * Three axes:
+ * Four axes:
  *   1. Registry freshness — for each @vivariumjs dependency: the registry
  *      "latest" must satisfy the declared range (else a fresh consumer
  *      cannot install at all), and publish lag (source version ahead of the
@@ -24,16 +28,28 @@
  *      `npm install --package-lock-only` (registry resolution), assert the
  *      generated lockfile carries no file:/link: resolutions, then `npm ci`
  *      (real install). This IS the fresh-consumer experience, executed.
+ *   4. Published documentation drift — the README the registry serves must
+ *      match the one beside the package's manifest in the repository (npm
+ *      ships a package-root README whatever `files` says, so that is the file
+ *      consumers actually receive). A difference is reported as a NAMED
+ *      signal, DOC-LAG. Unlike the other axes it never escalates under
+ *      --strict: it describes an artifact that is already published, and
+ *      publishing is precisely the action that clears it — a check that
+ *      blocked the fix would be inverted, and a permanently red gate is a
+ *      gate nobody reads. The message says whether a pending release exists
+ *      to carry the correction, because when source and registry sit at the
+ *      same version the correction has nothing to ride on.
  *
  * Zero dependencies; requires network access to registry.npmjs.org.
  * Usage: node host/tools/verify-consumption.ts [--strict]
- * Exit 0 on PASS (warnings allowed unless --strict), exit 1 otherwise.
+ * Exit 0 on PASS (warnings allowed; --strict escalates them, DOC-LAG excepted
+ * for the reason given under axis 4), exit 1 otherwise.
  */
 
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const STRICT = process.argv.includes("--strict");
@@ -61,6 +77,15 @@ function warn(desc: string): void {
     fail(`[strict] ${desc}`);
     return;
   }
+  warnCount++;
+  console.log(`WARN - ${desc}`);
+}
+/**
+ * A warning about an artifact that is ALREADY published. Never escalates
+ * under --strict, because the release being prepared is what resolves it:
+ * blocking that release on it would block the fix.
+ */
+function warnPublished(desc: string): void {
   warnCount++;
   console.log(`WARN - ${desc}`);
 }
@@ -108,6 +133,8 @@ if (vivariumDeps.length === 0) {
 
 // ── Axis 1: registry freshness ─────────────────────────────────────────────
 console.log("# axis 1 — registry freshness");
+/** Registry "latest" per package, resolved once here and reused by axis 4. */
+const registryLatest = new Map<string, string>();
 for (const [name, range] of vivariumDeps) {
   const view = npm(["view", name, "version"], SAMPLE_DIR);
   const latest = view.stdout.trim();
@@ -115,6 +142,7 @@ for (const [name, range] of vivariumDeps) {
     fail(`${name}: cannot resolve registry latest (npm view exit ${view.status})`);
     continue;
   }
+  registryLatest.set(name, latest);
   const sat = satisfies(range, latest);
   if (sat === null) {
     warn(`${name}: range "${range}" shape not modeled — freshness check skipped`);
@@ -205,6 +233,78 @@ try {
   }
 } finally {
   rmSync(tempDir, { recursive: true, force: true });
+}
+
+// ── Axis 4: published documentation drift ──────────────────────────────────
+console.log("# axis 4 — published documentation drift");
+
+/** Checkout artifacts, not authored content: line endings and a trailing newline. */
+function normalizeDoc(text: string): string {
+  return text.replace(/\r\n/g, "\n").replace(/\s+$/, "");
+}
+
+for (const [name] of vivariumDeps) {
+  const srcPath = SOURCE_PATHS[name];
+  if (!srcPath || !existsSync(srcPath)) {
+    console.log(`info - ${name}: source checkout absent, doc drift check n/a`);
+    continue;
+  }
+  // npm publishes the README sitting beside the manifest regardless of
+  // `files`, so the manifest's directory locates the file consumers receive —
+  // which is not necessarily the repository root when a repository holds
+  // several packages.
+  const repoReadme = join(dirname(srcPath), "README.md");
+  if (!existsSync(repoReadme)) {
+    fail(`${name}: no README.md beside the package manifest — nothing to compare the published one against`);
+    continue;
+  }
+  const view = npm(["view", name, "readme", "--json"], SAMPLE_DIR);
+  if (view.status !== 0) {
+    fail(`${name}: cannot read the published README (npm view exit ${view.status})`);
+    continue;
+  }
+  let published: string;
+  try {
+    const parsed: unknown = JSON.parse(view.stdout.trim() || "null");
+    if (typeof parsed !== "string" || parsed.trim() === "") {
+      warnPublished(`${name}: DOC-LAG — the registry serves no README for this package; its page has nothing to show`);
+      continue;
+    }
+    published = parsed;
+  } catch {
+    fail(`${name}: published README is not readable as JSON from the registry metadata`);
+    continue;
+  }
+
+  const pubLines = normalizeDoc(published).split("\n");
+  const repoLines = normalizeDoc(readFileSync(repoReadme, "utf8")).split("\n");
+  const height = Math.max(pubLines.length, repoLines.length);
+  let differing = 0;
+  let firstDiff = -1;
+  for (let i = 0; i < height; i++) {
+    if (pubLines[i] !== repoLines[i]) {
+      differing++;
+      if (firstDiff < 0) firstDiff = i + 1;
+    }
+  }
+  if (differing === 0) {
+    ok(`${name}: published README matches the repository`);
+    continue;
+  }
+  // Whether a pending release exists decides what the reader should do: with
+  // one, the correction ships on its own; without one, it has no carrier and
+  // the divergence persists until someone decides to release documentation.
+  const latest = registryLatest.get(name);
+  const srcVersion = JSON.parse(readFileSync(srcPath, "utf8")).version as string;
+  const carrier =
+    latest === undefined
+      ? "registry version unresolved, carrier unknown"
+      : latest === srcVersion
+        ? `source and registry are both ${latest} — no pending release carries the correction`
+        : `source ${srcVersion} is ahead of registry ${latest} — the pending release carries the correction`;
+  warnPublished(
+    `${name}: DOC-LAG — published README differs from the repository (${differing} of ${height} lines, first at line ${firstDiff}); ${carrier}`,
+  );
 }
 
 // ── summary ────────────────────────────────────────────────────────────────
