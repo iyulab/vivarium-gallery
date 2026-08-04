@@ -12,7 +12,12 @@
  *   {
  *     "base": "http://localhost:8890",        // 생략 시 기본값
  *     "exhibit": "landing-page",
- *     "turns": [ { "type": "build", "instruction": "..." }, ... ],
+ *     "turns": [ { "type": "build", "instruction": "...",
+ *                  "expectInvokes": ["survey.submit"],       // 마운트 시점
+ *                  "expectInteractions": [                   // 마운트 이후
+ *                    { "selector": "form", "event": "submit",
+ *                      "expectInvokes": ["survey.submit"],
+ *                      "expectText": "Thanks" } ] }, ... ],
  *     "gateCheckpointTurn": 3,                 // 체크포인트 = 이 턴(1-기반)
  *                                              // apply 직후 상태. 생략 시
  *                                              // 마지막-1 턴.
@@ -26,6 +31,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join, normalize } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { ExhibitDefinition } from "../exhibit-schema.ts";
+import type { InteractionStep } from "./render-check.ts";
 import { runRollbackGate } from "./rollback-gate.ts";
 
 const galleryRoot = normalize(join(fileURLToPath(import.meta.url), "..", "..", ".."));
@@ -35,6 +41,13 @@ interface TurnSpec {
   instruction: string;
   /** renderCheck 활성 시 이 턴 apply 후 반드시 invoke 돼 있어야 할 capability. */
   expectInvokes?: string[];
+  /**
+   * 마운트 **이후** 판정 — 선언된 셀렉터에 이벤트를 보내고
+   * 기대 invoke·텍스트를 확인한다. `expectInvokes` 가 마운트 시점을 보는 것과
+   * 달리, 이쪽은 상호작용이 살아 있는지를 본다. 형태는 render-check 의
+   * InteractionStep 과 같다.
+   */
+  expectInteractions?: InteractionStep[];
 }
 interface ScenarioSpec {
   base?: string;
@@ -112,7 +125,7 @@ let anyDefect = false;
 const renderCheckFn = spec.renderCheck ? (await import("./render-check.ts")).checkRender : null;
 
 for (let i = 0; i < spec.turns.length; i++) {
-  const { type, instruction, expectInvokes } = spec.turns[i];
+  const { type, instruction, expectInvokes, expectInteractions } = spec.turns[i];
   const t = Date.now();
   const turn =
     i === 0
@@ -170,10 +183,19 @@ for (let i = 0; i < spec.turns.length; i++) {
   lastApply = { sessionId: propose.sessionId, approved, fingerprint: turn.proposal.fingerprint };
 
   if (renderCheckFn) {
-    const check = await renderCheckFn(live[exhibit.primaryArtifactId], exhibit.capabilities, { expectInvokes });
+    const check = await renderCheckFn(live[exhibit.primaryArtifactId], exhibit.capabilities, {
+      expectInvokes,
+      ...(expectInteractions ? { interactions: expectInteractions } : {}),
+    });
     if (!check.ok) anyDefect = true;
+    // 상호작용 단계가 선언되지 않은 턴은 **마운트 시점만** 판정됐다는 뜻이다.
+    // 그 사실을 출력이 말해야 한다 — 초록의 폭을 읽는 사람이 그것을 모른 채
+    // "동작한다"로 읽는 것이 이 판정선의 원래 결함이었다.
+    const scope = expectInteractions?.length
+      ? `interactions=${check.interactions.map((s) => `${s.event}@${s.selector}→[${s.invoked.join(",")}]`).join(" ")}`
+      : "mount-only (no interactions declared)";
     console.log(
-      `  render-check: ${check.ok ? "ok" : "FAIL"} invoked=[${check.invoked.join(",")}] children=${check.childCount} text=${check.textLength}${check.ok ? "" : " — " + check.errors.join(" | ")}`,
+      `  render-check: ${check.ok ? "ok" : "FAIL"} invoked=[${check.invoked.join(",")}] children=${check.childCount} text=${check.textLength} ${scope}${check.ok ? "" : " — " + check.errors.join(" | ")}`,
     );
   }
 }

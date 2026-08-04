@@ -19,6 +19,19 @@
 2. 턴 4 apply 후 게이트: 체크포인트 = 턴 3 apply 직후 상태.
 3. `runs/<yyyymmdd>-<model>/` 아카이브 (archive-run.ts + screenshot).
 
+## 상호작용 기대 (마운트 이후 판정 — `render-check`)
+
+이 전시물의 요점은 그려진 폼이 아니라 **제출이 실제로 도착하는가**다. 마운트
+시점 판정(자식 노드·텍스트 길이·기대 invoke)은 제출 리스너가 죽어도 통과하므로,
+전시물이 아래를 선언하고 드라이버 spec 의 `expectInteractions` 가 그대로 받는다.
+
+| 셀렉터 | 이벤트 | 기대 invoke | 기대 텍스트 |
+| --- | --- | --- | --- |
+| `form` | `submit` | `survey.submit` | `Thanks` |
+
+턴이 카피를 번역하면(턴 4 i18n) 기대 텍스트도 그 턴의 지시에 맞춰 옮긴다 —
+기대를 고정해 두면 정상 변경을 결함으로 부른다.
+
 ## 관찰 포인트
 
 - 턴 4(i18n)는 knowledge 의 "localization changes ONLY user-visible copy"

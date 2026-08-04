@@ -17,10 +17,11 @@
  * 단언 13은 갤러리 정적 인덱스(index/build-index.ts) 생성을, 단언 14는
  * 렌더 검증(tools/render-check.ts — cycle-85 갭 후속)을 검증한다. 단언 15는
  * 그 생성이 워킹트리를 더럽히지 않는다는 README 의 약속을 판정한다 — 13이
- * 보는 것은 생성기의 결정성이고, 커밋본과의 일치는 그 밖에 있다.
+ * 보는 것은 생성기의 결정성이고, 커밋본과의 일치는 그 밖에 있다. 단언 16은
+ * 렌더 판정이 **마운트 이후**까지 가는지를 본다.
  *
  * Usage: node host/smoke.ts
- * Exit 0 + "smoke: 15/15 PASS" on success; exit 1 otherwise.
+ * Exit 0 + "smoke: 16/16 PASS" on success; exit 1 otherwise.
  */
 
 import { execFileSync } from "node:child_process";
@@ -35,7 +36,7 @@ const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:8890";
 const TARGET = exhibit.target;
 const ARTIFACT_ID = exhibit.primaryArtifactId;
 const SEED_CONTENT = exhibit.artifacts[ARTIFACT_ID];
-const TOTAL = 15;
+const TOTAL = 16;
 
 // Phase 6.e turn-cost instrumentation gate: every agent turn this smoke
 // drives must land in GET /agent/metrics (assertion 11).
@@ -533,6 +534,66 @@ async function main(): Promise<void> {
     ok(n, `${tracked} 재생성 후 워킹트리 청결 — 생성물이 체크아웃본과 바이트 동일`);
   } catch (err) {
     fail(n, "build-index 재생성 후 워킹트리 청결 (커밋본 == 생성물)", err);
+  }
+
+  // ── 16. 렌더 판정이 마운트에서 멈추지 않는다 ───────────
+  // 단언 14 까지가 보는 것은 전부 **마운트 시점**의 성질이다. 그래서 화면은
+  // 그려지지만 누르면 아무 일도 일어나지 않는 UI 가 전부 통과한다. 이 단언은
+  // 그 사각을 고정한다: 정상 아티팩트와 파손된 두 변형이 마운트 시점에는
+  // **완전히 동일하게 보이고**, 이벤트를 하나 보내면 갈린다.
+  //
+  // 변형은 실제 전시물 시드에서 파생한다 — 손으로 쓴 픽스처는 시드가 바뀌어도
+  // 그대로라 게이트가 실물에서 멀어진다. 치환이 실제로 일어났는지 먼저
+  // 확인한다(치환 실패 = 아무것도 시험하지 않는 초록).
+  n = 16;
+  try {
+    const { checkRender } = await import("./tools/render-check.ts");
+    const formExhibit = (await import("../exhibits/form-survey/exhibit.ts")).default;
+    const { SEED_CONTENT: FORM_SEED } = await import("../exhibits/form-survey/seed.ts");
+
+    const listenerTypo = FORM_SEED.replace('form.addEventListener("submit"', 'form.addEventListener("submitt"');
+    const capabilityTypo = FORM_SEED.replace('api.invoke("survey.submit"', 'api.invoke("survey.submitt"');
+    if (listenerTypo === FORM_SEED || capabilityTypo === FORM_SEED) {
+      throw new Error("fixture derivation failed — the seed no longer contains the substituted text");
+    }
+
+    // ① 마운트 시점에는 셋이 구별되지 않는다 — 이것이 갭 그 자체다.
+    const mountOnly = await Promise.all(
+      [FORM_SEED, listenerTypo, capabilityTypo].map((src) => checkRender(src, formExhibit.capabilities)),
+    );
+    const signature = (r: (typeof mountOnly)[number]): string =>
+      `${r.ok}|${r.childCount}|${r.textLength}|${r.invoked.join(",")}|${r.errors.join(",")}`;
+    if (new Set(mountOnly.map(signature)).size !== 1) {
+      throw new Error(
+        `precondition changed — mount-time judgment now distinguishes the variants: ${mountOnly.map(signature).join(" / ")}`,
+      );
+    }
+
+    // ② 상호작용을 하나 보내면 갈린다.
+    const interactions = [
+      { selector: "form", event: "submit", expectInvokes: ["survey.submit"], expectText: "Thanks" },
+    ];
+    const live = await checkRender(FORM_SEED, formExhibit.capabilities, { interactions });
+    if (!live.ok) throw new Error(`working artifact must pass interaction check — ${live.errors.join(" | ")}`);
+    if (live.interactions[0]?.invoked.join(",") !== "survey.submit") {
+      throw new Error(`interaction must record the invoke — got ${JSON.stringify(live.interactions)}`);
+    }
+
+    const deadListener = await checkRender(listenerTypo, formExhibit.capabilities, { interactions });
+    if (deadListener.ok || !deadListener.errors.some((e) => e.includes("not invoked by submit"))) {
+      throw new Error(`dead listener must fail — got ${JSON.stringify(deadListener)}`);
+    }
+
+    const wrongCapability = await checkRender(capabilityTypo, formExhibit.capabilities, { interactions });
+    if (wrongCapability.ok || !wrongCapability.errors.some((e) => e.includes("unhandled rejection"))) {
+      // 이 갈래가 조용한 이유는 dispatchEvent 가 promise 를 돌려주지 않기
+      // 때문이다 — 잡아 기록하지 않으면 프로세스 경고로만 흘러간다.
+      throw new Error(`wrong capability must surface its rejection — got ${JSON.stringify(wrongCapability)}`);
+    }
+
+    ok(n, "render-check 상호작용 단계 — 마운트에서 동일하던 셋이 이벤트 하나로 갈린다 (죽은 리스너·잘못된 capability)");
+  } catch (err) {
+    fail(n, "render-check 상호작용 단계 — 마운트 이후 판정", err);
   }
 
   const skipNote = skipCount > 0 ? ` + ${skipCount} SKIP (agent ${agentVersion} < 0.0.2)` : "";

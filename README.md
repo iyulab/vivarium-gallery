@@ -92,9 +92,10 @@ node host/tools/run-gates.ts --gate smoke-refusal   # 하나만
 
 ```bash
 # 결정적 회귀 (scripted provider 필수 — MODEL_PROVIDER 미설정으로 서버 기동)
-node host/smoke.ts        # 기대: smoke: 15/15 PASS (12 = 롤백 공통 게이트,
+node host/smoke.ts        # 기대: smoke: 16/16 PASS (12 = 롤백 공통 게이트,
                           #        13 = 정적 인덱스 생성(결정적), 14 = 렌더 검증,
-                          #        15 = 재생성 후 워킹트리 청결)
+                          #        15 = 재생성 후 워킹트리 청결,
+                          #        16 = 마운트 이후 상호작용 판정)
                           # 전제: 호스트 서버가 --exhibit dashboard 로 기동
 
 # 3-facet 동반 변경 게이트 — 전제: 호스트 서버가 --exhibit inventory 로 기동
@@ -122,6 +123,13 @@ node host/tools/verify-consumption.ts
   **기대 capability invoke 여부**). validated 여도 기능 파손인 렌더
   (cycle-85: 잘못된 capability 호출 → 빈 대시보드)를 감지. 드라이버
   spec 에 `renderCheck: true` + 턴별 `expectInvokes` 로 활성화.
+  - **마운트 이후도 본다** — 위 넷은 전부 마운트 시점의 성질이라, 화면은
+    그려지지만 눌러도 아무 일도 일어나지 않는 UI 가 전부 통과한다. 턴별
+    `expectInteractions` 가 선언되면 선언된 셀렉터에 이벤트를 보내고 기대
+    capability invoke·텍스트 변화를 판정하며, 이벤트 handler 안에서 조용히
+    거부된 promise 도 잡아 보고한다. 전시물은 이 기대를 `scenario.md` 에
+    적는다. 선언이 없는 턴은 출력이 `mount-only` 라고 **말한다** — 판정하는
+    코드는 자기가 판정하지 못하는 것을 말해야 한다.
 - `host/tools/rollback-gate.ts` — 롤백 공통 게이트(설계 §3) 4단계 판정:
   롤백 → 체크포인트 바이트 일치 → ledger 계보 정합 → 재적용. 결과는
   `rollback.json` 형식. 라이브러리 + CLI 겸용.
@@ -135,7 +143,7 @@ node host/tools/verify-consumption.ts
 
 | 이름 | 도메인 | 변경 유형 축 담당 | 상태 (runs/ 아카이브 참조) |
 | --- | --- | --- | --- |
-| [dashboard](exhibits/dashboard/) | dashboard | build·surgical·bulk | `smoke` 15/15 상시 게이트 · opus run 4건 |
+| [dashboard](exhibits/dashboard/) | dashboard | build·surgical·bulk | `smoke` 16/16 상시 게이트 · opus run 4건 |
 | [landing-page](exhibits/landing-page/) | landing-page | build·surgical·theme·restructure | opus·qwen 완주 각 1건 (모델 축 비교 — qwen 날조 관찰 1건) |
 | [form-survey](exhibits/form-survey/) | form-survey | build·delete·bulk·i18n | opus 완주 1건 |
 | [inventory](exhibits/inventory/) | inventory | **facet 축** — 스키마+데이터+UI 동반 | `smoke-3facet` 8/8 · `smoke-refusal` 6/6 · `smoke-review` 5/5 · 실모델 run 2건 (**둘 다 미완주** — 아래) |
