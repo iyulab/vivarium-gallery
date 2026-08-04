@@ -180,8 +180,13 @@ async function init(): Promise<void> {
   await Promise.all([canvas.whenReady(), preview.whenReady()]);
 
   // POST /stage/targets always succeeds and (re)seeds the target — the
-  // in-memory adapter's SeedTarget is unconditional, so reseeding on load
-  // is simply idempotent from this app's perspective.
+  // in-memory adapter's SeedTarget is unconditional. That is what this app
+  // wants (every visit starts from the exhibit's declared state), but it is
+  // NOT idempotent, which an earlier note here claimed: if the target already
+  // carries applied changes, opening this page discards them. So a run driven
+  // through the CLI cannot be viewed here afterwards — the act of looking
+  // destroys what you came to look at. Capture the result before opening it,
+  // or drive the run through this page in the first place.
   await post("/stage/targets", {
     target,
     artifacts: exhibit.artifacts,
