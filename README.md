@@ -92,8 +92,9 @@ node host/tools/run-gates.ts --gate smoke-refusal   # 하나만
 
 ```bash
 # 결정적 회귀 (scripted provider 필수 — MODEL_PROVIDER 미설정으로 서버 기동)
-node host/smoke.ts        # 기대: smoke: 14/14 PASS (12 = 롤백 공통 게이트,
-                          #        13 = 정적 인덱스 생성(결정적), 14 = 렌더 검증)
+node host/smoke.ts        # 기대: smoke: 15/15 PASS (12 = 롤백 공통 게이트,
+                          #        13 = 정적 인덱스 생성(결정적), 14 = 렌더 검증,
+                          #        15 = 재생성 후 워킹트리 청결)
                           # 전제: 호스트 서버가 --exhibit dashboard 로 기동
 
 # 3-facet 동반 변경 게이트 — 전제: 호스트 서버가 --exhibit inventory 로 기동
@@ -134,7 +135,7 @@ node host/tools/verify-consumption.ts
 
 | 이름 | 도메인 | 변경 유형 축 담당 | 상태 (runs/ 아카이브 참조) |
 | --- | --- | --- | --- |
-| [dashboard](exhibits/dashboard/) | dashboard | build·surgical·bulk | `smoke` 14/14 상시 게이트 · opus run 4건 |
+| [dashboard](exhibits/dashboard/) | dashboard | build·surgical·bulk | `smoke` 15/15 상시 게이트 · opus run 4건 |
 | [landing-page](exhibits/landing-page/) | landing-page | build·surgical·theme·restructure | opus·qwen 완주 각 1건 (모델 축 비교 — qwen 날조 관찰 1건) |
 | [form-survey](exhibits/form-survey/) | form-survey | build·delete·bulk·i18n | opus 완주 1건 |
 | [inventory](exhibits/inventory/) | inventory | **facet 축** — 스키마+데이터+UI 동반 | `smoke-3facet` 8/8 · `smoke-refusal` 6/6 · `smoke-review` 5/5 · 실모델 run 2건 (**둘 다 미완주** — 아래) |
@@ -153,7 +154,10 @@ Pages 는 배포 시 `exhibits/` 에서 인덱스를 **재생성**하므로, run
 build-index 를 깜빡해도 사이트에는 반영됩니다.
 
 커밋되는 `index/gallery.html` 은 **결정적**입니다 — 같은 입력이면 같은 바이트라,
-게이트를 돌려도 워킹트리가 더러워지지 않습니다. 배포 시각은 Pages 워크플로가
+게이트를 돌려도 워킹트리가 더러워지지 않습니다. 이것은 주장이 아니라 판정입니다:
+`smoke` 단언 15 가 재생성 직후 그 파일이 워킹트리에서 깨끗한지를 확인하고,
+[.gitattributes](.gitattributes) 가 체크아웃 시점의 줄끝 변환을 없애 생성 바이트와
+커밋 바이트를 어느 플랫폼에서나 같게 유지합니다. 배포 시각은 Pages 워크플로가
 `--generated-at` 으로 주입하며 그 산출물은 커밋되지 않습니다.
 
 ## 이 샘플이 발견한 것

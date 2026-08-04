@@ -1,0 +1,15 @@
+# Line endings are declared, not inferred.
+#
+# This repository commits a generated artifact (index/gallery.html) that a
+# gate rewrites on every run. If the checkout applies an end-of-line
+# conversion the generator does not, the regenerated file never matches the
+# checked-out one and the working tree is reported dirty after every gate
+# run — on some platforms only, so CI stays green while contributors see a
+# file they did not change.
+#
+# Declaring LF in the working tree removes the conversion, so generated
+# bytes and committed bytes are the same bytes everywhere.
+
+* text=auto eol=lf
+
+*.png binary
