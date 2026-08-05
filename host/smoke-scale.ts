@@ -20,8 +20,11 @@
  * Exit 0 + "smoke-scale: 9/9 PASS" on success; exit 1 otherwise.
  */
 
+import { JSDOM } from "jsdom";
+import { createUnifiedDiff } from "@vivariumjs/changeset";
 import exhibit from "../exhibits/ops-console/exhibit.ts";
-import { CARD_ADDED } from "../exhibits/ops-console/scripted.ts";
+import { CARD_ADDED, CARD_ANCHOR } from "../exhibits/ops-console/scripted.ts";
+import { renderChangesetReview } from "./review.ts";
 import { checkRender } from "./tools/render-check.ts";
 import { runRollbackGate } from "./tools/rollback-gate.ts";
 
@@ -30,7 +33,7 @@ const TARGET = exhibit.target;
 const ARTIFACT_ID = exhibit.primaryArtifactId;
 const SEED_CONTENT = exhibit.artifacts[ARTIFACT_ID];
 const DECLARED = exhibit.render ?? {};
-const TOTAL = 9;
+const TOTAL = 10;
 
 /** 규모 하한 — 이 아래로 내려가면 이 게이트의 나머지가 아무것도 말하지 않는다. */
 const FLOOR = { lines: 300, bytes: 10_000, rows: 35, entities: 3, capabilities: 4 };
@@ -432,6 +435,98 @@ async function main(): Promise<void> {
     );
   } catch (err) {
     fail(n, "규모에서 국소 diff · 롤백 바이트 일치", err);
+  }
+
+  // ── 10. 검토 화면의 머리말이 **크기를 말하지 않는다** (통과가 곧 결함) ────
+  //
+  // BD-05 조각 2 의 판정이다. 물음은 *"규모 아티팩트의 변경을 담은 검토 화면이 승인
+  // 가능한가"* 였고, 순진한 가설(*"규모면 diff 가 전량이라 못 읽는다"*)은 **틀렸다** —
+  // `createUnifiedDiff` 가 실제 diff 알고리즘이라 국소 변경은 아티팩트 크기와 무관하게
+  // 9줄이다. 최소성은 검토 표면에서도 규모를 견딘다.
+  //
+  // 무너지는 자리는 다른 데였다: **머리말이 facet 의 개수만 세고 크기를 세지 않는다.**
+  // 그래서 한 줄짜리 변경과 통째 재생성이 화면에서 **글자 그대로 같은 요약**을 받는다.
+  // 작은 전시물에서는 최악이 한 화면이라 무해했고, 규모에서는 그 한 줄이 24 KB 를 덮는다.
+  // 접힘·요약 장치도 없어 diff 는 전량 렌더된다.
+  n = 10;
+  try {
+    const render = (next: string): { head: string; nodes: number; folds: number; text: number } => {
+      const dom = new JSDOM("<!doctype html><div id='r'></div>");
+      const doc = dom.window.document;
+      const root = doc.getElementById("r") as unknown as HTMLElement;
+      renderChangesetReview(
+        root,
+        {
+          intent: "이 화면을 손봐 줘",
+          fingerprint: "sha256:0000000000000000",
+          patches: {
+            schema: [],
+            data: [],
+            ui: [
+              {
+                profile: "whole-artifact@0",
+                artifactId: ARTIFACT_ID,
+                baseFingerprint: "sha256:0",
+                newContent: next,
+                reviewDiff: createUnifiedDiff(SEED_CONTENT, next),
+                explanation: "설명 한 줄",
+              },
+            ],
+          },
+        },
+        { doc: doc as unknown as Document },
+      );
+      return {
+        head: root.querySelector(".review-facets")?.textContent ?? "",
+        nodes: root.querySelectorAll(".review-diff span").length,
+        folds: root.querySelectorAll("details, .review-fold, .review-summary").length,
+        text: (root.textContent ?? "").length,
+      };
+    };
+
+    const oneLine = SEED_CONTENT.replace(CARD_ANCHOR, `${CARD_ANCHOR}\n${CARD_ADDED}`);
+    if (oneLine === SEED_CONTENT) {
+      throw new Error("fixture derivation failed — the seed no longer contains the substituted text");
+    }
+    // 통째 재생성은 **합성 상한**이다(모든 줄이 다르다). 모델-현실적 값은 아래 restyled
+    // 쪽이며, 앞선 측정이 실모델의 국소 변경을 changedLines≈32 로 기록했다.
+    const rewritten = SEED_CONTENT.split("\n").map((l) => `${l} `).join("\n");
+    const restyled = SEED_CONTENT.replaceAll("padding:6px 8px", "padding:8px 10px").replaceAll("#dde1e8", "#d0d4dc");
+    if (restyled === SEED_CONTENT) {
+      throw new Error("fixture derivation failed — the seed no longer contains the substituted text");
+    }
+
+    const small = render(oneLine);
+    const mid = render(restyled);
+    const whole = render(rewritten);
+
+    // 대조군 먼저 — 세 화면이 실제로 다른 크기여야 이 단언이 무언가를 말한다.
+    if (!(small.text < mid.text && mid.text < whole.text) || whole.text < small.text * 20) {
+      throw new Error(
+        `전제가 바뀌었다 — 세 변경의 검토 화면 크기가 벌어지지 않는다: ` +
+          `${small.text} / ${mid.text} / ${whole.text}자`,
+      );
+    }
+    if (small.head !== whole.head || small.head !== mid.head) {
+      throw new Error(
+        `전제가 바뀌었다 — 머리말이 크기를 말하기 시작했다(${JSON.stringify([small.head, mid.head, whole.head])}). ` +
+          `그것이 수리가 착지한 것이므로 이 단언을 **뒤집을 것**: 이제 머리말이 크기별로 달라야 한다`,
+      );
+    }
+    if (whole.folds !== 0) {
+      throw new Error(
+        `전제가 바뀌었다 — 접힘·요약 장치가 생겼다(${whole.folds}개). 그것이 수리가 착지한 것이므로 ` +
+          `이 단언을 **뒤집을 것**: 이제 큰 diff 는 접혀야 한다`,
+      );
+    }
+    ok(
+      n,
+      `검토 화면의 머리말이 크기를 말하지 않는다 — 1줄 변경(${small.text}자) · 스타일 전반` +
+        `(${mid.text}자) · 통째 재생성(${whole.text}자, 합성 상한)이 전부 "${whole.head}" 로 같고, ` +
+        `${whole.nodes}줄 diff 에 접힘이 ${whole.folds}개다. 통과가 곧 결함`,
+    );
+  } catch (err) {
+    fail(n, "검토 화면의 머리말이 크기를 말하지 않는다 (통과가 곧 결함)", err);
   }
 
   await seed();
