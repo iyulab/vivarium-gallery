@@ -13,6 +13,11 @@
  * 단언 5는 **주입 안전**을 본다. 검토 화면의 입력은 전부 모델 유래(비신뢰)이고,
  * 검토 대상에게 조작당하는 검토 화면은 검토가 아니다.
  *
+ * 단언 6·7 은 **크기 보고**를 본다(조각 2-b). 규모 축이 실측한 결함은 머리말이 facet
+ * 마다 **틀린 단위**를 세는 것이었고 — 데이터는 패치 수를 세어 연산 1개와 39개가 같은
+ * 요약을 받았다 — 그 수리는 전시물과 무관한 동작이므로 규모 게이트가 아니라 **여기서**
+ * 지켜져야 한다. 규모 게이트에만 두면 한 전시물에서만 보장되는 기능이 된다.
+ *
  * Prerequisite: stage-host (8891) + host/server.ts (8890, **--exhibit inventory**).
  * Usage: node host/smoke-review.ts
  * Exit 0 + "smoke-review: 5/5 PASS"; 1 otherwise.
@@ -20,11 +25,11 @@
 
 import { JSDOM } from "jsdom";
 import exhibit from "../exhibits/inventory/exhibit.ts";
-import { renderChangesetReview, describeDataOp, describeSchemaOp } from "./review.ts";
+import { FOLD_ABOVE_LINES, renderChangesetReview, describeDataOp, describeSchemaOp } from "./review.ts";
 
 const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:8890";
 const ARTIFACT_ID = exhibit.primaryArtifactId;
-const TOTAL = 5;
+const TOTAL = 7;
 
 let passCount = 0;
 const failures: string[] = [];
@@ -158,6 +163,99 @@ async function main(): Promise<void> {
     ok(n, "모델 유래 문자열은 텍스트로만 렌더된다 (마크업 해석 0, 침묵 삼킴 0)");
   } catch (e) {
     fail(n, "모델 유래 문자열은 텍스트로만 렌더된다 (마크업 해석 0, 침묵 삼킴 0)", e);
+  }
+
+  // ── 6. 머리말이 facet 마다 **그 facet 의 크기 단위**를 센다 ───────────────
+  // 옛 문안은 셋 다 패치 수를 셌다. 데이터 패치 하나가 연산 39개를 담을 수 있으므로
+  // 그것은 크기가 아니었고, 실측에서 108자짜리 화면과 1,725자짜리 화면이 같은 요약을
+  // 받았다. 스키마만 맞았던 것은 우연이다(스키마 패치 하나 = 연산 하나).
+  n = 6;
+  try {
+    const mk = (ops: number): string => {
+      const r2 = doc.createElement("div");
+      renderChangesetReview(
+        r2 as unknown as HTMLElement,
+        {
+          intent: "x",
+          fingerprint: "sha256:0",
+          patches: {
+            schema: [],
+            data: [
+              {
+                id: "p",
+                explanation: "e",
+                operations: Array.from({ length: ops }, (_, i) => ({
+                  op: "update",
+                  entity: "Item",
+                  where: { field: "id", equals: `I-${i}` },
+                  set: { touched: i },
+                })),
+              },
+            ],
+            ui: [],
+          },
+        },
+        { doc: doc as unknown as Document },
+      );
+      return r2.querySelector(".review-facets")?.textContent ?? "";
+    };
+    const one = mk(1);
+    const many = mk(39);
+    if (one === many) {
+      throw new Error(`데이터 패치 1개에 연산 1개와 39개가 같은 요약을 받는다: ${JSON.stringify(one)}`);
+    }
+    if (!one.includes("데이터 연산 1") || !many.includes("데이터 연산 39")) {
+      throw new Error(`머리말이 데이터 **연산** 수를 세지 않는다: ${JSON.stringify([one, many])}`);
+    }
+    ok(n, `머리말이 facet 마다 크기 단위를 센다 — 같은 패치 1개가 연산 수에 따라 "${one}" / "${many}"`);
+  } catch (e) {
+    fail(n, "머리말이 facet 마다 그 facet 의 크기 단위를 센다", e);
+  }
+
+  // ── 7. 임계를 넘는 diff 는 접히되 **크기는 접히지 않는다** ────────────────
+  // 이 모듈이 고치는 결함이 "승인 전에 크기를 알 수 없다" 이므로, 접힘이 그 결함을
+  // 다시 만들면 수리가 아니다. 요약은 접힌 상태에서도 보여야 한다.
+  n = 7;
+  try {
+    const withDiff = (lines: number): Element => {
+      const r2 = doc.createElement("div");
+      const NL = "\n";
+      const body = Array.from({ length: lines }, (_, i) => `+line ${i}`).join(NL);
+      renderChangesetReview(
+        r2 as unknown as HTMLElement,
+        {
+          intent: "x",
+          fingerprint: "sha256:0",
+          patches: {
+            schema: [],
+            data: [],
+            ui: [{ profile: "verified-diff@0", artifactId: "a", baseFingerprint: "sha256:0",
+                   diff: `@@ -1,1 +1,${lines} @@${NL}${body}`, newFingerprint: "sha256:1", explanation: "e" }],
+          },
+        },
+        { doc: doc as unknown as Document },
+      );
+      return r2;
+    };
+    const small = withDiff(FOLD_ABOVE_LINES - 10);
+    const large = withDiff(FOLD_ABOVE_LINES + 10);
+    if (small.querySelectorAll("details, .review-fold").length !== 0) {
+      throw new Error("임계 아래의 diff 가 접혔다 — 문제없던 화면을 접고 있다");
+    }
+    if (large.querySelectorAll("details, .review-fold").length !== 1) {
+      throw new Error("임계 위의 diff 가 접히지 않았다");
+    }
+    const summary = large.querySelector(".review-diff-size")?.textContent ?? "";
+    if (!/\+\d+ −\d+/.test(summary)) {
+      throw new Error(`접힌 diff 의 요약이 크기를 말하지 않는다: ${JSON.stringify(summary)}`);
+    }
+    // 접혀도 본문은 문서 안에 있다 — 승인자가 펼칠 수 있어야 한다.
+    if (large.querySelectorAll(".review-diff span").length < FOLD_ABOVE_LINES) {
+      throw new Error("접힌 diff 의 본문이 사라졌다 — 접는 것과 감추는 것은 다르다");
+    }
+    ok(n, `임계(${FOLD_ABOVE_LINES}줄) 위만 접히고 요약은 남는다 — "${summary}"`);
+  } catch (e) {
+    fail(n, "임계를 넘는 diff 는 접히되 크기는 접히지 않는다", e);
   }
 
   console.log(

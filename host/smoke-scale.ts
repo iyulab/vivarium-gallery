@@ -10,6 +10,10 @@
  * 다는 사실을 통과로 고정하고, 잡기 시작하면 *전제가 바뀌었다*고 빨개진다. 그때
  * 정답은 판정을 다시 쓰는 것이지 단언을 지우는 것이 아니다.
  *
+ * **단언 10 이 그 경로를 실제로 돈 자리다.** 조각 2 가 *"검토 화면의 머리말이 크기를
+ * 말하지 않는다"* 를 통과로 고정했고, 조각 2-b 가 고치자 빨개졌으며, 그 실패를 보고
+ * 뒤집어 지금은 **크기를 말한다**를 단언한다.
+ *
  * **잃는 하한이 0건이면 그것은 깨끗한 결과가 아니라 규모가 부족하다는 신호다.**
  * 이 게이트가 전부 초록인 것과 화면이 안전한 것은 다르다.
  *
@@ -17,7 +21,7 @@
  * MODEL_PROVIDER 미설정 — 결정성은 scripted provider 에 의존).
  *
  * Usage: node host/smoke-scale.ts
- * Exit 0 + "smoke-scale: 9/9 PASS" on success; exit 1 otherwise.
+ * Exit 0 + "smoke-scale: 10/10 PASS" on success; exit 1 otherwise.
  */
 
 import { JSDOM } from "jsdom";
@@ -437,16 +441,20 @@ async function main(): Promise<void> {
     fail(n, "규모에서 국소 diff · 롤백 바이트 일치", err);
   }
 
-  // ── 10. 검토 화면의 머리말이 **크기를 말하지 않는다** (통과가 곧 결함) ────
+  // ── 10. 검토 화면이 **크기를 말한다** — 규모에서도 (조각 2-b 뒤집힌 단언) ────
   //
-  // BD-05 조각 2 의 판정이다. 물음은 *"규모 아티팩트의 변경을 담은 검토 화면이 승인
-  // 가능한가"* 였고, 순진한 가설(*"규모면 diff 가 전량이라 못 읽는다"*)은 **틀렸다** —
+  // 조각 2 가 이 자리를 *통과가 곧 결함* 으로 고정했었다: 머리말이 facet 의 **개수**만
+  // 세고 크기를 세지 않아, 439자짜리 화면과 24,586자짜리 화면이 글자 그대로 같은
+  // 요약을 받았다. 조각 2-b 가 그것을 고쳤고, 그 단언이 **실제로 빨개진 것을 보고**
+  // 여기서 뒤집었다.
+  //
+  // 진단이 *"머리말이 크기를 안 말한다"* 보다 좁았던 것이 수리를 정했다: 머리말은
+  // facet 마다 **틀린 단위**를 세고 있었다(데이터·UI 는 패치 수). 스키마만 맞았던
+  // 것은 우연이다 — 스키마 패치 하나가 곧 연산 하나다.
+  //
+  // 순진한 가설(*"규모면 diff 가 전량이라 못 읽는다"*)은 여전히 **틀렸다** —
   // `createUnifiedDiff` 가 실제 diff 알고리즘이라 국소 변경은 아티팩트 크기와 무관하게
-  // 9줄이다. 최소성은 검토 표면에서도 규모를 견딘다.
-  //
-  // 무너지는 자리는 다른 데였다: **머리말이 facet 의 개수만 세고 크기를 세지 않는다.**
-  // 그래서 한 줄짜리 변경과 통째 재생성이 화면에서 **글자 그대로 같은 요약**을 받는다.
-  // 접힘·요약 장치도 없어 diff 는 전량 렌더된다.
+  // 9줄이고, 단언 9 가 그것을 따로 잰다.
   //
   // **작은 전시물과 나란히 잰다.** "작을 때는 무해했다"가 이 판정의 틀을 지는 문장인데,
   // 그 값이 게이트 밖에 있으면 아무도 다시 만들 수 없다. 두 전시물에 **같은 세 연산**을
@@ -458,7 +466,10 @@ async function main(): Promise<void> {
   // 않도록 적어 둔다.
   n = 10;
   try {
-    const render = (base: string, next: string): { head: string; nodes: number; folds: number; text: number } => {
+    const render = (
+      base: string,
+      next: string,
+    ): { head: string; nodes: number; folds: number; text: number; foldSummary: string } => {
       const dom = new JSDOM("<!doctype html><div id='r'></div>");
       const doc = dom.window.document;
       const root = doc.getElementById("r") as unknown as HTMLElement;
@@ -487,8 +498,9 @@ async function main(): Promise<void> {
       return {
         head: root.querySelector(".review-facets")?.textContent ?? "",
         nodes: root.querySelectorAll(".review-diff span").length,
-        folds: root.querySelectorAll("details, .review-fold, .review-summary").length,
+        folds: root.querySelectorAll("details, .review-fold").length,
         text: (root.textContent ?? "").length,
+        foldSummary: root.querySelector(".review-diff-size")?.textContent ?? "",
       };
     };
 
@@ -518,40 +530,53 @@ async function main(): Promise<void> {
       for (const c of cases) rows.push({ scale, label: c.label, r: render(seed, c.of(seed)) });
     }
 
-    const heads = new Set(rows.map((x) => x.r.head));
-    const smallWorst = Math.max(...rows.filter((x) => x.scale === "작음").map((x) => x.r.text));
-    const bigWorst = Math.max(...rows.filter((x) => x.scale === "규모").map((x) => x.r.text));
-    const bigOne = rows.find((x) => x.scale === "규모" && x.label === "1줄 추가")!.r;
+    // ① 머리말이 변경 크기별로 갈린다. 같은 크기의 변경이 같은 요약을 받는 것은
+    //    정상이므로(작음/1줄추가 와 규모/1줄추가 는 둘 다 +1 −0), **각 시드 안에서**
+    //    세 크기가 서로 달라야 한다는 것으로 판정한다.
+    for (const scale of ["작음", "규모"] as const) {
+      const within = new Set(rows.filter((x) => x.scale === scale).map((x) => x.r.head));
+      if (within.size !== cases.length) {
+        throw new Error(
+          `${scale}: 세 크기의 변경이 머리말을 ${within.size}종으로만 받는다 — ` +
+            `${JSON.stringify([...within])}. 머리말이 크기를 말해야 한다(조각 2-b)`,
+        );
+      }
+    }
 
-    // 대조군 — 여섯 화면의 크기가 실제로 벌어지지 않으면 이 단언이 아무것도 말하지 않는다.
-    if (bigWorst < bigOne.text * 20 || bigWorst < smallWorst * 5) {
+    // ② 임계는 실측에서 도출됐다 — 작은 전시물의 **최악**(약 52줄)은 한 화면에
+    //    들어가 무해했으므로 펼친 채로 남고, 그보다 큰 것부터 접힌다. 둘 다 확인하지
+    //    않으면 "전부 접는다"나 "아무것도 안 접는다"가 통과한다.
+    const smallWorstRow = rows.filter((x) => x.scale === "작음").sort((a, b) => b.r.text - a.r.text)[0];
+    const bigWorstRow = rows.filter((x) => x.scale === "규모").sort((a, b) => b.r.text - a.r.text)[0];
+    if (smallWorstRow.r.folds !== 0) {
       throw new Error(
-        `전제가 바뀌었다 — 검토 화면 크기가 벌어지지 않는다: 규모 1줄=${bigOne.text} · ` +
-          `규모 최악=${bigWorst} · 작음 최악=${smallWorst}자`,
+        `작은 전시물의 최악(${smallWorstRow.label}, ${smallWorstRow.r.text}자)이 접혔다 — ` +
+          `임계가 실측 아래로 내려가 아무 문제도 없던 화면을 접고 있다`,
       );
     }
-    if (heads.size !== 1) {
+    if (bigWorstRow.r.folds !== 1) {
       throw new Error(
-        `전제가 바뀌었다 — 머리말이 크기를 말하기 시작했다(${JSON.stringify([...heads])}). ` +
-          `그것이 수리가 착지한 것이므로 이 단언을 **뒤집을 것**: 이제 머리말이 크기별로 달라야 한다`,
+        `규모의 최악(${bigWorstRow.label}, ${bigWorstRow.r.text}자)이 접히지 않았다(folds=${bigWorstRow.r.folds})`,
       );
     }
-    const folded = rows.filter((x) => x.r.folds > 0);
-    if (folded.length > 0) {
+
+    // ③ 접혀도 **크기는 접히지 않는다.** 이 모듈이 고치는 결함이 정확히 "승인 전에
+    //    크기를 알 수 없다" 이므로, 접힘이 그 결함을 다시 만들면 수리가 아니다.
+    if (!/\+\d+ −\d+/.test(bigWorstRow.r.foldSummary)) {
       throw new Error(
-        `전제가 바뀌었다 — 접힘·요약 장치가 생겼다(${JSON.stringify(folded.map((x) => x.label))}). ` +
-          `그것이 수리가 착지한 것이므로 이 단언을 **뒤집을 것**: 이제 큰 diff 는 접혀야 한다`,
+        `접힌 diff 의 요약이 크기를 말하지 않는다: ${JSON.stringify(bigWorstRow.r.foldSummary)}`,
       );
     }
+
     ok(
       n,
-      `검토 화면의 머리말이 크기를 말하지 않는다 — ` +
-        rows.map((x) => `${x.scale}/${x.label} ${x.r.text}자`).join(" · ") +
-        ` 가 전부 "${[...heads][0]}" 로 같다. 접힘 0개. ` +
-        `작을 때 무해했던 이유는 최악이 ${smallWorst}자였기 때문이고 규모에서는 ${bigWorst}자다. 통과가 곧 결함`,
+      `검토 화면이 크기를 말한다 — ` +
+        rows.map((x) => `${x.scale}/${x.label} "${x.r.head.replace("facet — ", "")}"`).join(" · ") +
+        `. 작음 최악(${smallWorstRow.r.text}자)은 펼친 채, 규모 최악(${bigWorstRow.r.text}자)은 ` +
+        `접히되 요약이 남는다("${bigWorstRow.r.foldSummary}")`,
     );
   } catch (err) {
-    fail(n, "검토 화면의 머리말이 크기를 말하지 않는다 (통과가 곧 결함)", err);
+    fail(n, "검토 화면이 크기를 말한다 — 규모에서도", err);
   }
 
   await seed();
