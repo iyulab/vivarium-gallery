@@ -50,6 +50,15 @@ export interface InteractionStep {
   selector: string;
   /** 보낼 이벤트 이름 (기본 "click"). bubbles·cancelable 로 보낸다. */
   event?: string;
+  /**
+   * 이벤트를 보내기 **전에** 요소의 `value` 를 이 값으로 둔다.
+   *
+   * 선택 입력(select·input)은 값 없이 이벤트만 보내면 아무 일도 일어나지 않는다 —
+   * 기본값 그대로의 `change` 는 산 화면과 죽은 화면에서 똑같이 아무것도 바꾸지 않고,
+   * 그래서 그 판정은 통과하되 아무것도 구별하지 않는다. 값을 둘 수 없으면 선택
+   * 입력으로 구동되는 화면은 **판정 대상 밖**이다.
+   */
+  setValue?: string;
   /** 이 단계에서 **새로** invoke 돼 있어야 할 capability. */
   expectInvokes?: string[];
   /** 이 단계 뒤 root 텍스트에 나타나야 할 문자열. */

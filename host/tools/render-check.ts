@@ -195,6 +195,24 @@ export async function checkRender(
         if (!target) {
           stepErrors.push(`no element matches selector: ${step.selector}`);
         } else {
+          if (step.setValue !== undefined) {
+            // 값을 둘 수 없으면 기본값 그대로의 이벤트가 되고, 그것은 산 화면과 죽은
+            // 화면에서 똑같이 아무것도 바꾸지 않는다 — 통과하되 구별하지 않는 판정.
+            const valued = target as unknown as { value?: unknown };
+            if (!("value" in valued)) {
+              stepErrors.push(`setValue given but element has no value: ${step.selector}`);
+            } else {
+              valued.value = step.setValue;
+              if (String(valued.value) !== step.setValue) {
+                // select 는 없는 옵션을 받으면 조용히 빈 값이 된다. 그 상태로 계속
+                // 가면 "필터가 죽었다"와 "선언이 낡았다"가 같은 실패로 보인다.
+                stepErrors.push(
+                  `setValue did not take on ${step.selector}: wanted ${JSON.stringify(step.setValue)}, ` +
+                    `got ${JSON.stringify(String(valued.value))}`,
+                );
+              }
+            }
+          }
           try {
             target.dispatchEvent(new dom.window.Event(eventName, { bubbles: true, cancelable: true }));
           } catch (err) {
