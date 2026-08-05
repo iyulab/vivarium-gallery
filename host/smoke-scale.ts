@@ -446,11 +446,19 @@ async function main(): Promise<void> {
   //
   // 무너지는 자리는 다른 데였다: **머리말이 facet 의 개수만 세고 크기를 세지 않는다.**
   // 그래서 한 줄짜리 변경과 통째 재생성이 화면에서 **글자 그대로 같은 요약**을 받는다.
-  // 작은 전시물에서는 최악이 한 화면이라 무해했고, 규모에서는 그 한 줄이 24 KB 를 덮는다.
   // 접힘·요약 장치도 없어 diff 는 전량 렌더된다.
+  //
+  // **작은 전시물과 나란히 잰다.** "작을 때는 무해했다"가 이 판정의 틀을 지는 문장인데,
+  // 그 값이 게이트 밖에 있으면 아무도 다시 만들 수 없다. 두 전시물에 **같은 세 연산**을
+  // 걸어 한 실험으로 둔다 — 각각 다른 치환을 쓰면 두 열은 비교가 아니라 두 이야기다.
+  //
+  // 프로파일 주의: 여기서 세우는 것은 `whole-artifact@0` 이고 이 전시물의 실제 턴은
+  // `verified-diff@0` 를 낸다(단언 9). 머리말은 **양쪽 모두** 크기를 말하지 않으므로
+  // 판정은 프로파일과 무관하지만, 표를 읽는 사람이 24 KB 를 이 전시물의 산출로 읽지
+  // 않도록 적어 둔다.
   n = 10;
   try {
-    const render = (next: string): { head: string; nodes: number; folds: number; text: number } => {
+    const render = (base: string, next: string): { head: string; nodes: number; folds: number; text: number } => {
       const dom = new JSDOM("<!doctype html><div id='r'></div>");
       const doc = dom.window.document;
       const root = doc.getElementById("r") as unknown as HTMLElement;
@@ -465,10 +473,10 @@ async function main(): Promise<void> {
             ui: [
               {
                 profile: "whole-artifact@0",
-                artifactId: ARTIFACT_ID,
+                artifactId: "a",
                 baseFingerprint: "sha256:0",
                 newContent: next,
-                reviewDiff: createUnifiedDiff(SEED_CONTENT, next),
+                reviewDiff: createUnifiedDiff(base, next),
                 explanation: "설명 한 줄",
               },
             ],
@@ -484,46 +492,63 @@ async function main(): Promise<void> {
       };
     };
 
-    const oneLine = SEED_CONTENT.replace(CARD_ANCHOR, `${CARD_ANCHOR}\n${CARD_ADDED}`);
-    if (oneLine === SEED_CONTENT) {
-      throw new Error("fixture derivation failed — the seed no longer contains the substituted text");
-    }
-    // 통째 재생성은 **합성 상한**이다(모든 줄이 다르다). 모델-현실적 값은 아래 restyled
-    // 쪽이며, 앞선 측정이 실모델의 국소 변경을 changedLines≈32 로 기록했다.
-    const rewritten = SEED_CONTENT.split("\n").map((l) => `${l} `).join("\n");
-    const restyled = SEED_CONTENT.replaceAll("padding:6px 8px", "padding:8px 10px").replaceAll("#dde1e8", "#d0d4dc");
-    if (restyled === SEED_CONTENT) {
-      throw new Error("fixture derivation failed — the seed no longer contains the substituted text");
+    // 세 연산은 **크기만 다르고 종류가 같다** — 줄을 하나 넣기 · 열 줄에 하나씩 ·
+    // 전부. 가운데가 논거를 진다: 305줄의 10% 는 30줄이고, 앞선 측정이 실모델의
+    // 국소 변경에서 기록한 `changedLines≈32` 와 같은 자리다. 마지막은 **합성 상한**
+    // 이며 어떤 모델도 모든 줄을 바꾸지 않는다.
+    const NL = "\n";
+    const nudge = (src: string, every: number): string =>
+      src.split(NL).map((l, k) => (k % every === 0 ? `${l} ` : l)).join(NL);
+    const insertOne = (src: string): string => {
+      const lines = src.split(NL);
+      lines.splice(1, 0, "  // one added line");
+      return lines.join(NL);
+    };
+
+    const dashboard = (await import("../exhibits/dashboard/exhibit.ts")).default;
+    const smallSeed = dashboard.artifacts[dashboard.primaryArtifactId];
+    const cases = [
+      { label: "1줄 추가", of: (src: string) => insertOne(src) },
+      { label: "10% 변경", of: (src: string) => nudge(src, 10) },
+      { label: "전 줄 변경(합성 상한)", of: (src: string) => nudge(src, 1) },
+    ];
+
+    const rows: Array<{ scale: string; label: string; r: ReturnType<typeof render> }> = [];
+    for (const [scale, seed] of [["작음", smallSeed], ["규모", SEED_CONTENT]] as const) {
+      for (const c of cases) rows.push({ scale, label: c.label, r: render(seed, c.of(seed)) });
     }
 
-    const small = render(oneLine);
-    const mid = render(restyled);
-    const whole = render(rewritten);
+    const heads = new Set(rows.map((x) => x.r.head));
+    const smallWorst = Math.max(...rows.filter((x) => x.scale === "작음").map((x) => x.r.text));
+    const bigWorst = Math.max(...rows.filter((x) => x.scale === "규모").map((x) => x.r.text));
+    const bigOne = rows.find((x) => x.scale === "규모" && x.label === "1줄 추가")!.r;
 
-    // 대조군 먼저 — 세 화면이 실제로 다른 크기여야 이 단언이 무언가를 말한다.
-    if (!(small.text < mid.text && mid.text < whole.text) || whole.text < small.text * 20) {
+    // 대조군 — 여섯 화면의 크기가 실제로 벌어지지 않으면 이 단언이 아무것도 말하지 않는다.
+    if (bigWorst < bigOne.text * 20 || bigWorst < smallWorst * 5) {
       throw new Error(
-        `전제가 바뀌었다 — 세 변경의 검토 화면 크기가 벌어지지 않는다: ` +
-          `${small.text} / ${mid.text} / ${whole.text}자`,
+        `전제가 바뀌었다 — 검토 화면 크기가 벌어지지 않는다: 규모 1줄=${bigOne.text} · ` +
+          `규모 최악=${bigWorst} · 작음 최악=${smallWorst}자`,
       );
     }
-    if (small.head !== whole.head || small.head !== mid.head) {
+    if (heads.size !== 1) {
       throw new Error(
-        `전제가 바뀌었다 — 머리말이 크기를 말하기 시작했다(${JSON.stringify([small.head, mid.head, whole.head])}). ` +
+        `전제가 바뀌었다 — 머리말이 크기를 말하기 시작했다(${JSON.stringify([...heads])}). ` +
           `그것이 수리가 착지한 것이므로 이 단언을 **뒤집을 것**: 이제 머리말이 크기별로 달라야 한다`,
       );
     }
-    if (whole.folds !== 0) {
+    const folded = rows.filter((x) => x.r.folds > 0);
+    if (folded.length > 0) {
       throw new Error(
-        `전제가 바뀌었다 — 접힘·요약 장치가 생겼다(${whole.folds}개). 그것이 수리가 착지한 것이므로 ` +
-          `이 단언을 **뒤집을 것**: 이제 큰 diff 는 접혀야 한다`,
+        `전제가 바뀌었다 — 접힘·요약 장치가 생겼다(${JSON.stringify(folded.map((x) => x.label))}). ` +
+          `그것이 수리가 착지한 것이므로 이 단언을 **뒤집을 것**: 이제 큰 diff 는 접혀야 한다`,
       );
     }
     ok(
       n,
-      `검토 화면의 머리말이 크기를 말하지 않는다 — 1줄 변경(${small.text}자) · 스타일 전반` +
-        `(${mid.text}자) · 통째 재생성(${whole.text}자, 합성 상한)이 전부 "${whole.head}" 로 같고, ` +
-        `${whole.nodes}줄 diff 에 접힘이 ${whole.folds}개다. 통과가 곧 결함`,
+      `검토 화면의 머리말이 크기를 말하지 않는다 — ` +
+        rows.map((x) => `${x.scale}/${x.label} ${x.r.text}자`).join(" · ") +
+        ` 가 전부 "${[...heads][0]}" 로 같다. 접힘 0개. ` +
+        `작을 때 무해했던 이유는 최악이 ${smallWorst}자였기 때문이고 규모에서는 ${bigWorst}자다. 통과가 곧 결함`,
     );
   } catch (err) {
     fail(n, "검토 화면의 머리말이 크기를 말하지 않는다 (통과가 곧 결함)", err);
