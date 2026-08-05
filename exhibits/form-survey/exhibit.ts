@@ -28,6 +28,15 @@ const exhibit: ExhibitDefinition = {
       handler: async () => ({ accepted: true }),
     },
   ],
+  render: {
+    // 마운트 중에 부르는 capability 가 없다 — 이 전시물의 capability 는 제출에만 쓰인다.
+    // 그래서 마운트 시점 판정만으로는 죽은 폼과 산 폼이 구별되지 않고, 아래 상호작용이
+    // 그것을 가른다.
+    expectInvokes: [],
+    interactions: [
+      { selector: "form", event: "submit", expectInvokes: ["survey.submit"], expectText: "Thanks" },
+    ],
+  },
   createKnowledge: () => [createSurveyKnowledge()],
   createScriptedProvider: () => createSurveyScriptProvider(),
 };

@@ -70,6 +70,11 @@ const exhibit: ExhibitDefinition = {
       handler: async () => DASHBOARD_DATASET,
     },
   ],
+  render: {
+    expectInvokes: ["dashboard.metrics"],
+    // 카드의 값 자리. 라벨(h3)은 값이 사라져도 차 있으므로 자리로 쓰지 않는다.
+    expectFilled: [{ selector: "section p", placeholder: "n/a" }],
+  },
   createKnowledge: () => [createDashboardKnowledge()],
   createScriptedProvider: () => createDashboardScriptProvider(),
 };

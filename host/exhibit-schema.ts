@@ -27,6 +27,60 @@ export interface ExhibitCapability {
   handler: (input: unknown) => Promise<unknown>;
 }
 
+/**
+ * **비어서는 안 되는 자리**의 선언.
+ *
+ * 마운트 판정(자식≥1 · 텍스트 하한)은 화면 **전체**의 총량을 본다. 그래서 표의
+ * 열 하나가 통째로 비어도, 나머지 열의 텍스트가 하한을 넘기면 통과한다. 무엇이
+ * 항상 차 있어야 하는지는 **전시물만 알고**, 그래서 선언은 전시물의 몫이다.
+ */
+export interface FilledExpectation {
+  /** root 기준 `querySelectorAll`. 매치가 0건이면 그것 자체가 실패다. */
+  selector: string;
+  /**
+   * 이 문자열만 담은 요소는 **비어 있는 것으로 센다** — 하우스 규칙이 빈 칸을
+   * 표기로 채우면(예: "—") 텍스트 길이로는 빈 것과 찬 것이 구별되지 않는다.
+   */
+  placeholder?: string;
+}
+
+/** 마운트 **이후**를 판정하는 한 단계. */
+export interface InteractionStep {
+  /** 이벤트를 받을 요소 — root 기준 querySelector. */
+  selector: string;
+  /** 보낼 이벤트 이름 (기본 "click"). bubbles·cancelable 로 보낸다. */
+  event?: string;
+  /** 이 단계에서 **새로** invoke 돼 있어야 할 capability. */
+  expectInvokes?: string[];
+  /** 이 단계 뒤 root 텍스트에 나타나야 할 문자열. */
+  expectText?: string;
+  /** 이벤트 처리 대기 ms (기본 200) — 비동기 handler 를 위한 여유. */
+  settleMs?: number;
+}
+
+/**
+ * 전시물이 **자기 시드가 옳게 그려진 모습**을 선언한다.
+ *
+ * 이 블록이 계약에 있는 이유: 이것이 없으면 게이트가 전시물 이름을 알아야 하고,
+ * 그러면 이 파일 머리말의 불변식(*"새 전시물 추가 = 디렉터리 추가이며 호스트는
+ * 변경되지 않는다"*)이 깨진다. 실제로 깨져 있었다 — 게이트 하나가 두 전시물의
+ * 기대를 하드코딩하고 있었고, 자리를 가진 전시물을 더하려면 게이트를 고쳐야 했다.
+ */
+export interface ExhibitRenderExpectations {
+  /** 시드가 마운트 중 반드시 invoke 하는 capability **전부**. */
+  expectInvokes?: string[];
+  /** 비어서는 안 되는 자리 — 매치된 요소가 하나라도 비면 실패. */
+  expectFilled?: FilledExpectation[];
+  /** 마운트 후 보낼 상호작용 (선언 순서대로). */
+  interactions?: InteractionStep[];
+  /**
+   * root 텍스트 총량 하한. 생략하면 판정 도구의 기본(20)을 쓴다.
+   * **화면이 커지면 이 값은 변별하지 못한다** — 총량은 열 하나가 통째로 비어도
+   * 나머지가 하한을 넘기면 통과시키고, 그 여유는 화면 크기에 비례한다.
+   */
+  minTextLength?: number;
+}
+
 export interface ExhibitDefinition {
   meta: ExhibitMeta;
   /** stage target 식별자. */
@@ -47,6 +101,8 @@ export interface ExhibitDefinition {
   primaryArtifactId: string;
   /** 브라우저 샌드박스에 grant 되는 capability 목록 (mock 데이터 — 규율 2). */
   capabilities: ExhibitCapability[];
+  /** 시드가 옳게 그려진 모습의 선언 — 게이트가 전시물 이름 없이 판정하게 한다. */
+  render?: ExhibitRenderExpectations;
   /** 서버 측 knowledge 포트 (선택). */
   createKnowledge?: () => KnowledgeSource[];
   /** 결정적 스모크용 scripted provider (서버 측, 선택). */

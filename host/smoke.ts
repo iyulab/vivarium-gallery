@@ -497,9 +497,18 @@ async function main(): Promise<void> {
   n = 14;
   try {
     const { checkRender } = await import("./tools/render-check.ts");
-    const good = await checkRender(SEED_CONTENT, exhibit.capabilities, { expectInvokes: ["dashboard.metrics"] });
+    // 기대는 **전시물이 선언한다**. 여기 리터럴을 두면 자리를 가진 전시물을 더할 때마다
+    // 게이트를 고쳐야 하고, 그것은 계약이 선언한 불변식(디렉터리 추가만으로 전시물이
+    // 는다)을 깨뜨린다.
+    const declared = exhibit.render;
+    if (!declared?.expectInvokes?.length) {
+      throw new Error("전시물이 기대 invoke 를 선언하지 않았다 — 이 단언은 선언이 있어야 성립한다");
+    }
+    const good = await checkRender(SEED_CONTENT, exhibit.capabilities, declared);
     if (!good.ok) throw new Error(`seed must pass render check — ${good.errors.join(" | ")}`);
     // cycle-85 감지 사례: 기대 capability(dataset)가 invoke 되지 않으면 FAIL.
+    // 대조군은 **일부러 틀린 이름**을 준다 — 이것까지 선언에서 읽으면 이 단언이
+    // 아무것도 구별하지 않는다.
     const wrongInvoke = await checkRender(SEED_CONTENT, exhibit.capabilities, { expectInvokes: ["dashboard.dataset"] });
     if (wrongInvoke.ok || !wrongInvoke.errors.some((e) => e.includes("not invoked"))) {
       throw new Error(`expectInvokes mismatch must fail — got ${JSON.stringify(wrongInvoke)}`);
@@ -592,10 +601,11 @@ async function main(): Promise<void> {
       );
     }
 
-    // ② 상호작용을 하나 보내면 갈린다.
-    const interactions = [
-      { selector: "form", event: "submit", expectInvokes: ["survey.submit"], expectText: "Thanks" },
-    ];
+    // ② 상호작용을 하나 보내면 갈린다. 무엇을 눌러야 하는지는 **전시물이 선언한다**.
+    const interactions = formExhibit.render?.interactions ?? [];
+    if (interactions.length === 0) {
+      throw new Error("form-survey 가 상호작용을 선언하지 않았다 — 이 단언은 선언이 있어야 성립한다");
+    }
     const live = await checkRender(FORM_SEED, formExhibit.capabilities, { interactions });
     if (!live.ok) throw new Error(`working artifact must pass interaction check — ${live.errors.join(" | ")}`);
     if (live.interactions[0]?.invoked.join(",") !== "survey.submit") {
@@ -644,7 +654,11 @@ async function main(): Promise<void> {
     if (emptied === SEED_CONTENT || grown === emptied) {
       throw new Error("fixture derivation failed — the seed no longer contains the substituted text");
     }
-    const expectFilled = [{ selector: "section p", placeholder: "n/a" }];
+    // 자리는 **전시물이 선언한다** — 무엇이 항상 차 있어야 하는지는 전시물만 안다.
+    const expectFilled = exhibit.render?.expectFilled ?? [];
+    if (expectFilled.length === 0) {
+      throw new Error("dashboard 가 자리를 선언하지 않았다 — 이 단언은 선언이 있어야 성립한다");
+    }
 
     // 대조군 먼저 — 시드가 통과하지 않으면 아래 실패는 아무것도 구별하지 않는다.
     const good = await checkRender(SEED_CONTENT, exhibit.capabilities, {

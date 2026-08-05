@@ -29,53 +29,21 @@
  */
 
 import { JSDOM } from "jsdom";
-import type { ExhibitCapability } from "../exhibit-schema.ts";
+import type {
+  ExhibitCapability,
+  ExhibitRenderExpectations,
+  FilledExpectation,
+  InteractionStep,
+} from "../exhibit-schema.ts";
 
-export interface InteractionStep {
-  /** 이벤트를 받을 요소 — root 기준 querySelector. */
-  selector: string;
-  /** 보낼 이벤트 이름 (기본 "click"). bubbles·cancelable 로 보낸다. */
-  event?: string;
-  /** 이 단계에서 **새로** invoke 돼 있어야 할 capability. */
-  expectInvokes?: string[];
-  /** 이 단계 뒤 root 텍스트에 나타나야 할 문자열. */
-  expectText?: string;
-  /** 이벤트 처리 대기 ms (기본 200) — 비동기 handler 를 위한 여유. */
-  settleMs?: number;
-}
+// 선언의 형태는 **전시물 계약**에 산다 — 무엇이 차 있어야 하고 무엇을 눌러야 하는지는
+// 전시물만 알기 때문이다. 판정 도구는 그것을 소비할 뿐이다. 여기서 재수출하는 것은
+// 기존 import 경로를 깨지 않기 위해서다.
+export type { FilledExpectation, InteractionStep };
 
-/**
- * **비어서는 안 되는 자리**의 선언.
- *
- * 마운트 판정(자식≥1 · 텍스트 하한)은 화면 **전체**의 총량을 본다. 그래서 표의
- * 열 하나가 통째로 비어도, 나머지 열의 텍스트가 하한을 넘기면 통과한다 — 실모델
- * run 하나가 정확히 그 상태를 만들었다(스키마를 개명하면서 데이터를 두고 가자
- * 이름 칸 셋이 전부 빈 칸 표기가 됐고, 모든 게이트가 초록이었다).
- *
- * 총량으로는 잡을 수 없으므로 **자리**를 선언한다. 무엇이 항상 차 있어야 하는지는
- * 전시물만 알고, 그래서 선언은 전시물의 몫이다 — 상호작용 기대와 같은 어법이다.
- */
-export interface FilledExpectation {
-  /** root 기준 `querySelectorAll`. 매치가 0건이면 그것 자체가 실패다. */
-  selector: string;
-  /**
-   * 이 문자열만 담은 요소는 **비어 있는 것으로 센다** — 하우스 규칙이 빈 칸을
-   * 표기로 채우면(예: "—") 텍스트 길이로는 빈 것과 찬 것이 구별되지 않는다.
-   */
-  placeholder?: string;
-}
-
-export interface RenderCheckOptions {
-  /** 이 이름들이 전부 invoke 되어야 통과 (예: ["dashboard.dataset"]). */
-  expectInvokes?: string[];
-  /** 비어서는 안 되는 자리 — 매치된 요소가 **하나라도** 비면 실패. */
-  expectFilled?: FilledExpectation[];
-  /** root.textContent 최소 길이 (기본 20). */
-  minTextLength?: number;
+export interface RenderCheckOptions extends ExhibitRenderExpectations {
   /** mount 완료 대기 한도 ms (기본 5000). */
   timeoutMs?: number;
-  /** 마운트 후 보낼 상호작용 단계 (선언 순서대로). */
-  interactions?: InteractionStep[];
 }
 
 export interface InteractionRecord {
