@@ -18,10 +18,14 @@
  * 렌더 검증(tools/render-check.ts — cycle-85 갭 후속)을 검증한다. 단언 15는
  * 그 생성이 워킹트리를 더럽히지 않는다는 README 의 약속을 판정한다 — 13이
  * 보는 것은 생성기의 결정성이고, 커밋본과의 일치는 그 밖에 있다. 단언 16은
- * 렌더 판정이 **마운트 이후**까지 가는지를 본다.
+ * 렌더 판정이 **마운트 이후**까지 가는지를 본다. 단언 17은 총량 하한이 값 실종을
+ * 잡는 범위가 **화면 크기**에 달렸음을 수치로 고정하고, 단언 18은 **전 전시물의
+ * 자리 선언이 실제로 돌아가는지**를 본다 — 게이트마다 전시물이 하나로 고정돼 있어
+ * 아무도 안 돌리는 선언이 생길 수 있고, 그런 선언은 셀렉터가 낡는 순간 조용히 0을
+ * 판정하면서 초록으로 남는다.
  *
  * Usage: node host/smoke.ts
- * Exit 0 + "smoke: 16/16 PASS" on success; exit 1 otherwise.
+ * Exit 0 + "smoke: 18/18 PASS" on success; exit 1 otherwise.
  */
 
 import { execFileSync } from "node:child_process";
@@ -36,7 +40,7 @@ const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:8890";
 const TARGET = exhibit.target;
 const ARTIFACT_ID = exhibit.primaryArtifactId;
 const SEED_CONTENT = exhibit.artifacts[ARTIFACT_ID];
-const TOTAL = 17;
+const TOTAL = 18;
 
 // Phase 6.e turn-cost instrumentation gate: every agent turn this smoke
 // drives must land in GET /agent/metrics (assertion 11).
@@ -704,6 +708,55 @@ async function main(): Promise<void> {
     );
   } catch (err) {
     fail(n, "자리 선언 — 값이 전부 빠진 화면을 총량은 작을 때만 잡는다 (시드는 통과 — 대조군)", err);
+  }
+
+  // ── 18. 전 전시물의 자리 선언이 실제로 돌아간다 ─────────────────────────
+  // 선언은 여섯 전시물이 전부 갖고 있으나, 그중 셋은 어떤 게이트도 읽지 않는다
+  // (게이트마다 전시물이 하나로 고정돼 있고 한 전시물은 아예 게이트가 없다).
+  // 아무도 안 돌리는 선언은 셀렉터가 낡는 순간 조용히 0을 판정하면서 초록으로
+  // 남는다 — 단언 14·16·17 이 고친 것과 **같은 모양**의 결함이고, 자리 선언
+  // 자체가 매치 0건을 실패로 두는 것과 같은 저울이다.
+  //
+  // 기대 목록은 `exhibits/` 에서 파생한다(단언 13 과 같은 규율) — 하드코딩하면 새
+  // 전시물이 선언 없이 들어와도 통과한다.
+  n = 18;
+  try {
+    const { checkRender } = await import("./tools/render-check.ts");
+    const exhibitsDir = new URL("../exhibits/", import.meta.url);
+    const names = readdirSync(exhibitsDir).filter((name) =>
+      existsSync(new URL(`${name}/exhibit.ts`, exhibitsDir)),
+    );
+    if (names.length === 0) throw new Error("no exhibits found — the expectation list would be vacuous");
+
+    const undeclared: string[] = [];
+    const broken: string[] = [];
+    const readout: string[] = [];
+    for (const name of names) {
+      const ex = (await import(`../exhibits/${name}/exhibit.ts`)).default;
+      const declared = ex.render?.expectFilled ?? [];
+      if (declared.length === 0) {
+        undeclared.push(name);
+        continue;
+      }
+      const source = ex.artifacts[ex.primaryArtifactId];
+      const r = await checkRender(source, ex.capabilities, ex.render);
+      // 시드가 자기 선언에 떨어지거나, 셀렉터가 아무것도 매치하지 못하거나,
+      // 매치한 자리가 비어 있으면 그 선언은 낡았다.
+      if (!r.ok || r.filled.length === 0 || r.filled.some((f) => f.total === 0 || f.blank > 0)) {
+        broken.push(`${name}: ${JSON.stringify(r.filled)} ${r.errors.join(" | ")}`);
+        continue;
+      }
+      readout.push(`${name} ${r.filled.map((f) => f.total).join("/")}`);
+    }
+    if (undeclared.length > 0) {
+      throw new Error(`자리를 선언하지 않은 전시물: ${undeclared.join(", ")} — 그 화면의 판정은 총량으로 돌아간다`);
+    }
+    if (broken.length > 0) {
+      throw new Error(`선언이 실물과 어긋났다 — ${broken.join(" ;; ")}`);
+    }
+    ok(n, `전 전시물(${names.length})의 자리 선언이 시드에서 실제로 돌아간다 — ${readout.join(" · ")}`);
+  } catch (err) {
+    fail(n, "전 전시물의 자리 선언이 시드에서 실제로 돌아간다", err);
   }
 
   console.log(`smoke: ${passCount}/${TOTAL - skipCount} PASS${skipNote}`);
