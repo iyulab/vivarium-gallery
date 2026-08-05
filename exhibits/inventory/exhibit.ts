@@ -33,6 +33,12 @@ const exhibit: ExhibitDefinition = {
       handler: async () => MOCK_ROWS,
     },
   ],
+  render: {
+    expectInvokes: ["inventory.list"],
+    // 표의 **모든 데이터 셀**. 헤더는 `th` 라 여기 걸리지 않는다 — 헤더는 데이터가
+    // 사라져도 차 있으므로 그것을 자리로 세면 초록만 넓어진다.
+    expectFilled: [{ selector: "td", placeholder: "—" }],
+  },
   createKnowledge: () => [createInventoryKnowledge()],
   createScriptedProvider: () => createInventoryScriptProvider(),
 };

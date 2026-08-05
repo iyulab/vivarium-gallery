@@ -400,29 +400,29 @@ async function main(): Promise<void> {
       join(here, "..", "exhibits", "contacts", "runs", "20260804-claude-opus-4-8", "artifacts", "contacts-main.js"),
       "utf8",
     );
-    const expectFilled = [{ selector: "td:first-child", placeholder: "—" }];
+    // 자리는 **전시물이 선언한다** — 무엇이 항상 차 있어야 하는지는 전시물만 안다.
+    const declared = exhibit.render;
+    if (!declared?.expectFilled?.length) {
+      throw new Error("contacts 가 자리를 선언하지 않았다 — 이 단언은 선언이 있어야 성립한다");
+    }
 
     // 대조군 먼저 — 시드는 통과해야 한다. 통과하지 않으면 아래 실패는 이 판정이
     // 무엇에나 빨간불을 켠다는 뜻일 뿐 아무것도 구별하지 않는다.
-    const seedCheck = await checkRender(SEED_CONTENT, exhibit.capabilities, {
-      expectInvokes: ["contacts.list"],
-      expectFilled,
-    });
+    const seedCheck = await checkRender(SEED_CONTENT, exhibit.capabilities, declared);
     if (!seedCheck.ok) {
       throw new Error(`대조군(시드)이 떨어졌다 — ${seedCheck.errors.join(" | ")}`);
     }
-    if (seedCheck.filled[0]?.total !== 3 || seedCheck.filled[0]?.blank !== 0) {
+    if (seedCheck.filled[0]?.total !== 9 || seedCheck.filled[0]?.blank !== 0) {
       throw new Error(`대조군 판독이 예상과 다르다: ${JSON.stringify(seedCheck.filled)}`);
     }
 
-    const brokenCheck = await checkRender(brokenSource, exhibit.capabilities, {
-      expectInvokes: ["contacts.list"],
-      expectFilled,
-    });
+    const brokenCheck = await checkRender(brokenSource, exhibit.capabilities, declared);
     if (brokenCheck.ok) {
       throw new Error("개명 run 의 산출물이 통과했다 — 이 판정이 그 사각을 보지 못한다");
     }
-    if (brokenCheck.filled[0]?.blank !== 3) {
+    // 9칸 중 3칸 — 한 열이 통째로 비었다는 뜻이다. 분모를 함께 보는 것이 요점이다:
+    // 비율이 작을수록 총량 판정이 그것을 덮을 여지가 크다.
+    if (brokenCheck.filled[0]?.total !== 9 || brokenCheck.filled[0]?.blank !== 3) {
       throw new Error(`빈 칸 판독이 예상과 다르다: ${JSON.stringify(brokenCheck.filled)}`);
     }
     // 마운트 총량으로는 여전히 멀쩡하다는 것이 이 단언의 요점이다.
