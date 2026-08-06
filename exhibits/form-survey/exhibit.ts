@@ -29,16 +29,18 @@ const exhibit: ExhibitDefinition = {
     },
   ],
   render: {
-    // 마운트 중에 부르는 capability 가 없다 — 이 전시물의 capability 는 제출에만 쓰인다.
-    // 그래서 마운트 시점 판정만으로는 죽은 폼과 산 폼이 구별되지 않고, 아래 상호작용이
-    // 그것을 가른다.
-    expectInvokes: [],
-    // 질문 라벨과 제출 버튼. 상태 문단(`p`)은 **마운트 시점에 비어 있는 것이 정상**
-    // 이므로 자리로 세지 않는다 — 그것까지 세면 시드가 자기 게이트에 떨어진다.
-    expectFilled: [{ selector: "section label" }, { selector: "button" }],
-    interactions: [
-      { selector: "form", event: "submit", expectInvokes: ["survey.submit"], expectText: "Thanks" },
-    ],
+    "survey-main": {
+      // 마운트 중에 부르는 capability 가 없다 — 이 전시물의 capability 는 제출에만 쓰인다.
+      // 그래서 마운트 시점 판정만으로는 죽은 폼과 산 폼이 구별되지 않고, 아래 상호작용이
+      // 그것을 가른다.
+      expectInvokes: [],
+      // 질문 라벨과 제출 버튼. 상태 문단(`p`)은 **마운트 시점에 비어 있는 것이 정상**
+      // 이므로 자리로 세지 않는다 — 그것까지 세면 시드가 자기 게이트에 떨어진다.
+      expectFilled: [{ selector: "section label" }, { selector: "button" }],
+      interactions: [
+        { selector: "form", event: "submit", expectInvokes: ["survey.submit"], expectText: "Thanks" },
+      ],
+    },
   },
   createKnowledge: () => [createSurveyKnowledge()],
   createScriptedProvider: () => createSurveyScriptProvider(),

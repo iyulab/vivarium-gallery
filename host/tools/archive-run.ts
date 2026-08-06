@@ -111,7 +111,18 @@ copyFileSync(screenshotPath, join(runDir, "screenshot.png"));
 // ── final.html — 자립형 뷰어 ─────────────────────────────────────────────
 // JSON 문자열의 `<` 를 < 로 이스케이프해 </script> 조기 종결을 차단.
 const inline = (value: unknown): string => JSON.stringify(value).replace(/</g, "\\u003c");
-const primary = artifacts[exhibit.primaryArtifactId] ?? Object.values(artifacts)[0] ?? "";
+// 지목이 빗나가면 **거부한다.** 예전에는 조용히 다른 아티팩트를 대신 담았고,
+// 그러면 뷰어는 그럴듯하게 뜨면서 지목이 틀렸다는 사실만 사라진다 — 굳은 run 을
+// 나중에 누가 열어 봐도 그것이 대타였음을 알 방법이 없다. 아카이브는 되돌릴 수
+// 있는 마지막 순간이므로(D156-4 와 같은 저울) 여기서 막는다.
+const primary = artifacts[exhibit.primaryArtifactId];
+if (primary === undefined) {
+  console.error(
+    `archive-run: primaryArtifactId "${exhibit.primaryArtifactId}" is not among the run's artifacts ` +
+      `(${Object.keys(artifacts).join(", ") || "none"}) — refusing to archive a viewer that shows a different screen`,
+  );
+  process.exit(1);
+}
 const finalHtml = `<!doctype html>
 <html lang="ko">
 <head>

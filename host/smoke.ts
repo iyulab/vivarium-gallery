@@ -35,6 +35,7 @@ import { fileURLToPath } from "node:url";
 import { artifactFingerprint } from "@vivariumjs/changeset";
 import exhibit from "../exhibits/dashboard/exhibit.ts";
 import { runRollbackGate } from "./tools/rollback-gate.ts";
+import { renderFor } from "./tools/render-check.ts";
 
 const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:8890";
 const TARGET = exhibit.target;
@@ -504,7 +505,7 @@ async function main(): Promise<void> {
     // 기대는 **전시물이 선언한다**. 여기 리터럴을 두면 자리를 가진 전시물을 더할 때마다
     // 게이트를 고쳐야 하고, 그것은 계약이 선언한 불변식(디렉터리 추가만으로 전시물이
     // 는다)을 깨뜨린다.
-    const declared = exhibit.render;
+    const declared = renderFor(exhibit, ARTIFACT_ID);
     if (!declared?.expectInvokes?.length) {
       throw new Error("전시물이 기대 invoke 를 선언하지 않았다 — 이 단언은 선언이 있어야 성립한다");
     }
@@ -606,7 +607,7 @@ async function main(): Promise<void> {
     }
 
     // ② 상호작용을 하나 보내면 갈린다. 무엇을 눌러야 하는지는 **전시물이 선언한다**.
-    const interactions = formExhibit.render?.interactions ?? [];
+    const interactions = renderFor(formExhibit, formExhibit.primaryArtifactId).interactions ?? [];
     if (interactions.length === 0) {
       throw new Error("form-survey 가 상호작용을 선언하지 않았다 — 이 단언은 선언이 있어야 성립한다");
     }
@@ -659,7 +660,7 @@ async function main(): Promise<void> {
       throw new Error("fixture derivation failed — the seed no longer contains the substituted text");
     }
     // 자리는 **전시물이 선언한다** — 무엇이 항상 차 있어야 하는지는 전시물만 안다.
-    const expectFilled = exhibit.render?.expectFilled ?? [];
+    const expectFilled = renderFor(exhibit, ARTIFACT_ID).expectFilled ?? [];
     if (expectFilled.length === 0) {
       throw new Error("dashboard 가 자리를 선언하지 않았다 — 이 단언은 선언이 있어야 성립한다");
     }
@@ -733,13 +734,13 @@ async function main(): Promise<void> {
     const readout: string[] = [];
     for (const name of names) {
       const ex = (await import(`../exhibits/${name}/exhibit.ts`)).default;
-      const declared = ex.render?.expectFilled ?? [];
+      const declared = renderFor(ex, ex.primaryArtifactId).expectFilled ?? [];
       if (declared.length === 0) {
         undeclared.push(name);
         continue;
       }
       const source = ex.artifacts[ex.primaryArtifactId];
-      const r = await checkRender(source, ex.capabilities, ex.render);
+      const r = await checkRender(source, ex.capabilities, renderFor(ex, ex.primaryArtifactId));
       // 시드가 자기 선언에 떨어지거나, 셀렉터가 아무것도 매치하지 못하거나,
       // 매치한 자리가 비어 있으면 그 선언은 낡았다.
       if (!r.ok || r.filled.length === 0 || r.filled.some((f) => f.total === 0 || f.blank > 0)) {

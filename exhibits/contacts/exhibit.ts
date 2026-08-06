@@ -36,10 +36,12 @@ const exhibit: ExhibitDefinition = {
     },
   ],
   render: {
-    expectInvokes: ["contacts.list"],
-    // 표의 모든 데이터 셀. 개명 run 하나가 이름 열만 비웠고 나머지 두 열이 총량을
-    // 채워 모든 게이트가 초록이었다 — 그래서 열 하나가 아니라 셀 전체를 자리로 센다.
-    expectFilled: [{ selector: "td", placeholder: "—" }],
+    "contacts-main": {
+      expectInvokes: ["contacts.list"],
+      // 표의 모든 데이터 셀. 개명 run 하나가 이름 열만 비웠고 나머지 두 열이 총량을
+      // 채워 모든 게이트가 초록이었다 — 그래서 열 하나가 아니라 셀 전체를 자리로 센다.
+      expectFilled: [{ selector: "td", placeholder: "—" }],
+    },
   },
   createKnowledge: () => [createContactsKnowledge()],
   createScriptedProvider: () => createContactsScriptProvider(),

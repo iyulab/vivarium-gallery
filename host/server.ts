@@ -60,6 +60,15 @@ if (!exhibit?.meta?.name || !exhibit.target || !exhibit.primaryArtifactId) {
   console.error(`exhibit ${exhibitName}: default export is not a valid ExhibitDefinition`);
   process.exit(1);
 }
+// 지목이 빗나가면 여기서 멈춘다. 조용히 다른 아티팩트를 대신 쓰면 화면은 그럴듯하게
+// 뜨고 **지목이 틀렸다는 사실만 사라진다** — 아카이버가 하던 폴백이 그것이었다.
+if (!exhibit.artifacts?.[exhibit.primaryArtifactId]) {
+  console.error(
+    `exhibit ${exhibitName}: primaryArtifactId "${exhibit.primaryArtifactId}" is not in artifacts ` +
+      `(${Object.keys(exhibit.artifacts ?? {}).join(", ") || "none"})`,
+  );
+  process.exit(1);
+}
 
 // Stage host proxy target (same role as integration/e2e-demo's stage proxy).
 const stageUrl = process.env.STAGE_URL ?? "http://localhost:8891";
@@ -204,6 +213,13 @@ const server = createServer(async (req, res) => {
         meta: exhibit.meta,
         target: exhibit.target,
         primaryArtifactId: exhibit.primaryArtifactId,
+        // 화면 **전부**. 하나만 알리던 동안 앱은 하나만 그렸고, 둘째 화면은
+        // 승인·apply·rollback 을 전부 통과한 채 어디에도 나타나지 않았다.
+        // primary 를 머리에 두어 순서가 선언과 같다.
+        artifactIds: [
+          exhibit.primaryArtifactId,
+          ...Object.keys(exhibit.artifacts).filter((id) => id !== exhibit.primaryArtifactId),
+        ],
       }),
     );
     return;

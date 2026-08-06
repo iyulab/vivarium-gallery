@@ -38,13 +38,21 @@ const exhibit: ExhibitDefinition = {
       handler: async () => MOCK_CART,
     },
   ],
-  // **선언이 아티팩트 축을 갖지 않는다.** 이 블록은 화면 하나를 가정하고 쓰였고,
-  // 그래서 여기 적힌 것은 전부 `primaryArtifactId` 의 화면에 대한 것이다. 둘째
-  // 화면의 자리·상호작용은 **선언할 자리가 없다** — 그것이 구성 축이 드러내는
-  // 계약 공백이고, `smoke-compose` 단언 5 가 그것을 고정한다.
+  // 선언이 화면마다 하나씩 선다. 이 전시물이 그 축을 요구한 전시물이다 —
+  // 아티팩트가 둘인데 선언이 하나였을 때, 둘째 화면은 위 1~4 를 전부 통과한 채
+  // **어디에도 나타나지 않았다.**
   render: {
-    expectInvokes: ["storefront.products"],
-    expectFilled: [{ selector: ".sf-product", placeholder: "—" }],
+    "storefront-catalog": {
+      expectInvokes: ["storefront.products"],
+      expectFilled: [{ selector: ".sf-product", placeholder: "—" }],
+    },
+    // 둘째 화면의 선언 — 이 네 줄이 없던 동안 이 화면은 **통째로 죽어도** 어떤
+    // 게이트도 말하지 않았다. 구성 축이 드러낸 것은 라이브러리 공백이 아니라
+    // 계약의 어휘 공백이었고, 그 어휘가 곧 이 키다.
+    "storefront-cart": {
+      expectInvokes: ["storefront.cart"],
+      expectFilled: [{ selector: ".sf-line", placeholder: "—" }],
+    },
   },
   createKnowledge: () => [createStorefrontKnowledge()],
   createScriptedProvider: () => createStorefrontScriptProvider(),

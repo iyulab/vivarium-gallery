@@ -27,7 +27,7 @@
 
 import exhibit from "../exhibits/storefront/exhibit.ts";
 import { NOTE_TEXT } from "../exhibits/storefront/scripted.ts";
-import { checkRender } from "./tools/render-check.ts";
+import { checkRender, renderFor, undeclaredArtifacts } from "./tools/render-check.ts";
 
 const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:8890";
 const TARGET = exhibit.target;
@@ -163,43 +163,55 @@ async function main(): Promise<void> {
     fail(n, "rollback 이 두 화면을 둘 다 바이트 복귀시킨다", err);
   }
 
-  // ── 5. 그런데 **호스트는 하나만 안다** (통과가 곧 결함) ───────────────────
-  // 계약이 아티팩트 **하나**를 지목하고, 호스트가 화면·프리뷰·드라이버·아카이브에서
-  // 전부 그 하나만 쓴다. 둘째는 위 1~4 를 전부 통과한 채로 **어디에도 나타나지 않는다.**
+  // ── 5. 호스트가 화면을 **전부** 안다 (cycle-173 에서 뒤집힘) ─────────────
+  // 옛 단언: `/exhibit` 이 하나만 알리고 앱이 하나만 그렸다. 둘째 화면은 위 1~4 를
+  // 전부 통과한 채 **어디에도 나타나지 않았다**. 이제 응답이 화면 전부를 알리고,
+  // primary 는 "유일한 화면"이 아니라 **첫 화면**이다.
   n = 5;
   try {
     const res = await fetch(`${BASE}/exhibit`);
     const info = await res.json();
+    const announced: string[] = info.artifactIds ?? [];
+    const world = Object.keys(exhibit.artifacts);
+    const missing = world.filter((id) => !announced.includes(id));
+    if (missing.length > 0) {
+      throw new Error(`월드에 ${world.length}개인데 /exhibit 이 알리지 않는 화면이 있다: ${missing.join(", ")}`);
+    }
+    if (announced[0] !== PRIMARY) {
+      throw new Error(`첫 화면이 primary 가 아니다 — 선언 순서와 알림 순서가 어긋난다: ${announced.join(", ")}`);
+    }
     if (info.primaryArtifactId !== PRIMARY) {
       throw new Error(`전제가 바뀌었다 — /exhibit 이 지목하는 것이 다르다: ${JSON.stringify(info.primaryArtifactId)}`);
     }
-    // 응답 어디에도 둘째 아티팩트의 이름이 없다. 있으면 호스트가 그것을 알기
-    // 시작한 것이므로 이 단언을 뒤집어야 한다.
-    if (JSON.stringify(info).includes(SECOND)) {
-      throw new Error(
-        `전제가 바뀌었다 — /exhibit 이 둘째 화면(${SECOND})을 알린다. 호스트가 다중 아티팩트를 ` +
-          `보기 시작한 것이므로 이 단언을 **뒤집을 것**: 이제 두 화면이 다 나와야 한다`,
-      );
-    }
     ok(
       n,
-      `호스트는 화면을 **하나만** 안다 — 월드에는 ${Object.keys(exhibit.artifacts).length}개인데 ` +
-        `/exhibit 은 "${info.primaryArtifactId}" 하나만 알린다. 통과가 곧 결함`,
+      `호스트가 화면을 **전부** 안다 — /exhibit 이 ${announced.length}개를 알리고(${announced.join(", ")}) ` +
+        `primary("${PRIMARY}")가 첫 화면이다`,
     );
   } catch (err) {
-    fail(n, "호스트는 화면을 하나만 안다 (통과가 곧 결함)", err);
+    fail(n, "호스트가 화면을 전부 안다", err);
   }
 
-  // ── 6. 둘째 화면이 **통째로 깨져도** 판정이 전부 초록 (통과가 곧 결함) ────
-  // 선언(`render`)에 **아티팩트 축이 없다** — 블록 하나가 전시물 전체를 대표하고,
-  // 그래서 그 안의 자리·기대 invoke 는 전부 primary 의 화면에 대한 것이다. 둘째
-  // 화면의 자리는 **선언할 자리가 없고**, 없는 선언은 아무것도 판정하지 않는다.
+  // ── 6. 둘째 화면이 깨지면 **판정이 그것을 말한다** (cycle-173 에서 뒤집힘) ──
+  // 옛 단언: 선언(`render`) 블록 하나가 전시물 전체를 대표해서, 둘째 화면의 자리는
+  // **선언할 자리가 없었다**. 이제 선언이 `artifactId` 로 키를 갖고, 화면마다 하나씩
+  // 선다. 그리고 선언되지 않은 화면이 몇인지도 함께 센다 — 판정이 **없는** 것과
+  // 판정이 **통과한** 것은 다르고, 둘을 같은 초록으로 보이게 두지 않는다.
   n = 6;
   try {
-    const declared = exhibit.render ?? {};
-    // 대조군 — 시드 primary 는 선언대로 통과한다.
-    const good = await checkRender(exhibit.artifacts[PRIMARY], exhibit.capabilities, declared);
-    if (!good.ok) throw new Error(`대조군(primary 시드)이 떨어졌다 — ${good.errors.join(" | ")}`);
+    const uncovered = undeclaredArtifacts(exhibit);
+    if (uncovered.length > 0) {
+      throw new Error(
+        `선언이 없는 화면이 있다(${uncovered.join(", ")}) — 이 전시물은 구성 축의 무대이므로 ` +
+          `모든 화면이 선언을 가져야 한다`,
+      );
+    }
+
+    // 대조군 — 시드가 화면마다 자기 선언대로 통과한다.
+    for (const id of Object.keys(exhibit.artifacts)) {
+      const good = await checkRender(exhibit.artifacts[id], exhibit.capabilities, renderFor(exhibit, id));
+      if (!good.ok) throw new Error(`대조군(${id} 시드)이 떨어졌다 — ${good.errors.join(" | ")}`);
+    }
 
     // 둘째 화면을 통째로 죽인다 — mount 가 아무것도 그리지 않는다.
     const deadSecond = "export default async function mount(){ /* 아무것도 그리지 않는다 */ }";
@@ -211,32 +223,28 @@ async function main(): Promise<void> {
       data: exhibit.data,
     });
 
-    // 그런데 이 전시물에 대해 **돌아가는 렌더 판정**은 primary 것뿐이고, 그것은 멀쩡하다.
-    const stillGreen = await checkRender(brokenWorld[PRIMARY], exhibit.capabilities, declared);
-    if (!stillGreen.ok) {
+    // primary 는 여전히 멀쩡하다 — 즉 primary 판정만으로는 아무것도 알 수 없다.
+    const primaryStill = await checkRender(brokenWorld[PRIMARY], exhibit.capabilities, renderFor(exhibit, PRIMARY));
+    if (!primaryStill.ok) {
+      throw new Error(`전제가 바뀌었다 — 둘째를 죽였는데 primary 판정이 떨어졌다(${primaryStill.errors.join(" | ")})`);
+    }
+
+    // 그런데 이제 **둘째의 선언이 있고**, 그것이 죽은 화면을 잡는다.
+    const secondCheck = await checkRender(brokenWorld[SECOND], exhibit.capabilities, renderFor(exhibit, SECOND));
+    if (secondCheck.ok) {
       throw new Error(
-        `전제가 바뀌었다 — 둘째를 죽였는데 primary 판정이 떨어졌다(${stillGreen.errors.join(" | ")})`,
+        `둘째 화면을 통째로 죽였는데 그 화면의 선언이 통과했다 — 선언이 자리를 가리키지 못한다`,
       );
     }
-    // 그리고 선언에는 둘째를 가리킬 어휘가 없다.
-    const declaredText = JSON.stringify(declared);
-    if (declaredText.includes(SECOND) || declaredText.includes("artifactId")) {
-      throw new Error(
-        `전제가 바뀌었다 — 선언이 아티팩트를 지목하기 시작했다(${declaredText}). ` +
-          `계약에 아티팩트 축이 생긴 것이므로 이 단언을 **뒤집을 것**`,
-      );
-    }
-    // 둘째가 실제로 죽었다는 것은 직접 확인한다 — 죽지 않았으면 이 단언은 아무것도 말하지 않는다.
-    const deadCheck = await checkRender(deadSecond, exhibit.capabilities, {});
-    if (deadCheck.ok) throw new Error("죽인 화면이 판정을 통과했다 — 픽스처가 아무것도 만들지 않았다");
 
     ok(
       n,
-      `둘째 화면이 통째로 깨져도 판정이 전부 초록 — 선언에 **아티팩트 축이 없어** ` +
-        `그 화면을 가리킬 어휘 자체가 없다(깨진 화면 단독 판정은 "${deadCheck.errors[0]}"). 통과가 곧 결함`,
+      `둘째 화면이 깨지면 **그 화면의 선언이 말한다** — primary 는 여전히 초록인데 ` +
+        `"${SECOND}" 판정이 떨어진다("${secondCheck.errors[0]}"). 선언 ${Object.keys(exhibit.render ?? {}).length}개가 ` +
+        `화면 ${Object.keys(exhibit.artifacts).length}개를 전부 덮는다`,
     );
   } catch (err) {
-    fail(n, "둘째 화면이 통째로 깨져도 판정이 전부 초록 (통과가 곧 결함)", err);
+    fail(n, "둘째 화면이 깨지면 판정이 그것을 말한다", err);
   }
 
   await seed();

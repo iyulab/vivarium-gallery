@@ -29,14 +29,14 @@ import { createUnifiedDiff } from "@vivariumjs/changeset";
 import exhibit from "../exhibits/ops-console/exhibit.ts";
 import { CARD_ADDED, CARD_ANCHOR } from "../exhibits/ops-console/scripted.ts";
 import { renderChangesetReview } from "./review.ts";
-import { checkRender } from "./tools/render-check.ts";
+import { checkRender, renderFor } from "./tools/render-check.ts";
 import { runRollbackGate } from "./tools/rollback-gate.ts";
 
 const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:8890";
 const TARGET = exhibit.target;
 const ARTIFACT_ID = exhibit.primaryArtifactId;
 const SEED_CONTENT = exhibit.artifacts[ARTIFACT_ID];
-const DECLARED = exhibit.render ?? {};
+const DECLARED = renderFor(exhibit, ARTIFACT_ID);
 const TOTAL = 10;
 
 /** 규모 하한 — 이 아래로 내려가면 이 게이트의 나머지가 아무것도 말하지 않는다. */

@@ -9,10 +9,14 @@
  * capability grant 목록이 그 모듈에서 온다 (exhibit-schema.ts 계약).
  *
  * Flow (dashboard-builder 이식과 동일):
- *   1. grant exhibit capabilities, mount two sandboxes (canvas + preview)
- *   2. seed the stage target (idempotent — mirrors smoke.ts) → load live
- *      artifacts → render the canvas
- *   3. click-to-select on the canvas keeps a live edit context for the chat
+ *   1. grant exhibit capabilities, mount a canvas + preview sandbox **per
+ *      artifact** — a change that touches several screens has to be visible
+ *      on several screens
+ *   2. seed the stage target (mirrors smoke.ts) → load live artifacts →
+ *      render every canvas
+ *   3. click-to-select on any canvas keeps a live edit context for the chat;
+ *      the selection carries which screen it came from, since only that
+ *      screen's sandbox can build the context
  *   4. chat → /agent/session (first turn) or /agent/refine (subsequent turns)
  *      → proposal → propose the (still unapproved) changeset to stage → the
  *      preview sandbox renders the branch preview
@@ -78,12 +82,48 @@ let exhibit: ExhibitDefinition;
 let target = "";
 let primaryArtifactId = "";
 let liveArtifacts: Record<string, string> = {};
+let artifactIds: string[] = [];
 let selectedIds: string[] = [];
+/**
+ * 선택이 일어난 화면. 편집 맥락은 **그 화면의 샌드박스**에서만 만들 수 있으므로,
+ * 선택은 요소 id 만으로는 부족하고 어느 화면의 것인지를 함께 들어야 한다.
+ * 화면이 하나뿐이던 동안 이 값은 언제나 primary 였고, 그래서 없어도 됐다.
+ */
+let selectedArtifactId = "";
 let hasSession = false; // first chat turn uses /agent/session; every turn after uses /agent/refine
 let pendingProposal: { fingerprint: string; changeset: any } | null = null;
 let appliedSessionId: string | null = null; // last applied stage session — the rollback target
-let canvas: ReturnType<typeof mountSandbox>;
-let preview: ReturnType<typeof mountSandbox>;
+/**
+ * 화면마다 샌드박스 하나. 하나를 전환하는 설계도 가능했지만, 구성 축이 시험하는
+ * 명제가 *한 변경이 두 화면을 함께 바꾼다* 이므로 전환은 그 절반을 가린다 —
+ * apply 가 둘을 바꾸고 rollback 이 둘을 되돌리는 것을 사람이 볼 수 없다.
+ */
+const canvases = new Map<string, ReturnType<typeof mountSandbox>>();
+const previews = new Map<string, ReturnType<typeof mountSandbox>>();
+
+/**
+ * 컨테이너 안에 화면마다 라벨 붙은 자리를 만든다. 라벨이 `artifactId` 인 것이
+ * 요점이다 — 화면이 여럿일 때 사람이 어느 것을 보고 있는지 말할 수 없으면
+ * 여럿을 보여 주는 의미가 절반으로 준다.
+ */
+function buildScreens(container: HTMLElement, ids: string[]): Map<string, HTMLElement> {
+  container.replaceChildren();
+  container.classList.toggle("multi", ids.length > 1);
+  const slots = new Map<string, HTMLElement>();
+  for (const id of ids) {
+    const box = document.createElement("div");
+    box.className = "screen";
+    const label = document.createElement("div");
+    label.className = "screen-label";
+    label.textContent = id;
+    const frame = document.createElement("div");
+    frame.className = "screen-frame";
+    box.append(label, frame);
+    container.append(box);
+    slots.set(id, frame);
+  }
+  return slots;
+}
 
 // ── ledger ───────────────────────────────────────────────────────────────
 function renderLedger(entries: any[]): void {
@@ -103,9 +143,20 @@ async function refreshLedger(): Promise<void> {
   renderLedger(Array.isArray(ledger) ? ledger.filter((e: any) => e.target === target) : []);
 }
 
+// ── canvases ─────────────────────────────────────────────────────────────
+/** 살아 있는 상태를 화면 **전부**에 그린다. */
+async function renderCanvases(): Promise<void> {
+  for (const [id, sandbox] of canvases) {
+    await sandbox.render(liveArtifacts[id] ?? "export default function mount(){}");
+  }
+}
+
 // ── selection ────────────────────────────────────────────────────────────
 function updateSelectionInfo(): void {
-  selectionEl.textContent = selectedIds.length > 0 ? `선택됨: ${selectedIds.join(", ")}` : "선택 없음";
+  // 화면이 여럿이면 어느 화면의 선택인지가 정보의 절반이다.
+  const where = artifactIds.length > 1 && selectedArtifactId ? `${selectedArtifactId} / ` : "";
+  selectionEl.textContent =
+    selectedIds.length > 0 ? `선택됨: ${where}${selectedIds.join(", ")}` : "선택 없음";
   clearSelectionBtn.hidden = selectedIds.length === 0;
 }
 
@@ -114,6 +165,7 @@ function updateSelectionInfo(): void {
 // events only (no visual state), so clearing the app's own list is the fix.
 clearSelectionBtn.addEventListener("click", () => {
   selectedIds = [];
+  selectedArtifactId = "";
   updateSelectionInfo();
 });
 
@@ -168,6 +220,9 @@ async function init(): Promise<void> {
   exhibit = (await import(`/exhibits/${info.name}/exhibit.ts`)).default;
   target = info.target;
   primaryArtifactId = info.primaryArtifactId;
+  artifactIds = Array.isArray(info.artifactIds) && info.artifactIds.length > 0
+    ? info.artifactIds
+    : [info.primaryArtifactId];
   titleEl.textContent = `${exhibit.meta.title} — vivarium gallery`;
   document.title = `${exhibit.meta.name} — vivarium gallery`;
 
@@ -175,9 +230,22 @@ async function init(): Promise<void> {
   for (const cap of exhibit.capabilities) {
     registry.grant(cap.descriptor, cap.handler);
   }
-  canvas = mountSandbox(canvasEl, { registry, context: { app: `gallery:${exhibit.meta.name}` } });
-  preview = mountSandbox(previewEl, { registry, context: { app: `gallery:${exhibit.meta.name}-preview` } });
-  await Promise.all([canvas.whenReady(), preview.whenReady()]);
+  const canvasSlots = buildScreens(canvasEl, artifactIds);
+  const previewSlots = buildScreens(previewEl, artifactIds);
+  for (const id of artifactIds) {
+    canvases.set(
+      id,
+      mountSandbox(canvasSlots.get(id)!, { registry, context: { app: `gallery:${exhibit.meta.name}:${id}` } }),
+    );
+    previews.set(
+      id,
+      mountSandbox(previewSlots.get(id)!, {
+        registry,
+        context: { app: `gallery:${exhibit.meta.name}:${id}-preview` },
+      }),
+    );
+  }
+  await Promise.all([...canvases.values(), ...previews.values()].map((s) => s.whenReady()));
 
   // POST /stage/targets always succeeds and (re)seeds the target — the
   // in-memory adapter's SeedTarget is unconditional. That is what this app
@@ -195,13 +263,17 @@ async function init(): Promise<void> {
   });
   const seeded = await get(`/stage/targets/${target}/artifacts`);
   liveArtifacts = seeded.artifacts;
-  await canvas.render(liveArtifacts[primaryArtifactId]);
+  await renderCanvases();
 
-  await canvas.setSelectionMode(true);
-  canvas.onSelectionChanged((element: ElementDescriptor) => {
-    selectedIds = [element.id];
-    updateSelectionInfo();
-  });
+  for (const [id, sandbox] of canvases) {
+    await sandbox.setSelectionMode(true);
+    sandbox.onSelectionChanged((element: ElementDescriptor) => {
+      // 선택은 한 화면 안의 일이다 — 다른 화면을 클릭하면 그 화면으로 옮겨 간다.
+      selectedArtifactId = id;
+      selectedIds = [element.id];
+      updateSelectionInfo();
+    });
+  }
   updateSelectionInfo();
 
   setPendingUi(false);
@@ -217,7 +289,9 @@ async function sendChat(): Promise<void> {
   try {
     setStatus("에이전트 요청 중…");
     const editContext: EditContext | null =
-      selectedIds.length > 0 ? await canvas.createEditContext(selectedIds) : null;
+      selectedIds.length > 0 && canvases.has(selectedArtifactId)
+        ? await canvases.get(selectedArtifactId)!.createEditContext(selectedIds)
+        : null;
 
     let turn: any;
     if (!hasSession) {
@@ -247,7 +321,10 @@ async function sendChat(): Promise<void> {
     // Propose the still-UNAPPROVED changeset to stage — branch + preview
     // only, no live effect (approval happens on the approve button).
     const propose = await post(`/stage/targets/${target}/changesets`, pendingProposal!.changeset);
-    await preview.render(propose.preview[primaryArtifactId]);
+    // 프리뷰도 화면 전부다 — 제안이 둘을 바꾸면 둘 다 미리 보인다.
+    for (const [id, sandbox] of previews) {
+      await sandbox.render(propose.preview[id] ?? liveArtifacts[id] ?? "export default function mount(){}");
+    }
     // 결과(프리뷰) 옆에 **무엇이 왜 바뀌는가**를 함께 둔다 — changeset 이 이미 담고
     // 있는 것을 렌더할 뿐이며, 승인은 이 화면을 보고 내리는 판단이다 (T3).
     renderChangesetReview(reviewEl, pendingProposal!.changeset);
@@ -290,7 +367,7 @@ approveBtn.addEventListener("click", () => {
       });
       liveArtifacts = apply.artifacts;
       appliedSessionId = propose.sessionId;
-      await canvas.render(liveArtifacts[primaryArtifactId]);
+      await renderCanvases();
       rollbackBtn.disabled = false;
       pendingProposal = null;
       setPendingUi(false);
@@ -319,7 +396,7 @@ rollbackBtn.addEventListener("click", () => {
       setStatus("롤백 처리 중…");
       const rollback = await post(`/stage/sessions/${appliedSessionId}/rollback`, { actor: "gallery-ui" });
       liveArtifacts = rollback.artifacts;
-      await canvas.render(liveArtifacts[primaryArtifactId]);
+      await renderCanvases();
       appliedSessionId = null;
       setStatus("롤백 완료");
       await refreshLedger();

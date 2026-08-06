@@ -32,14 +32,16 @@ const exhibit: ExhibitDefinition = {
     },
   ],
   render: {
-    expectInvokes: ["landing.content"],
-    // 이 전시물은 화면 전체가 카피다 — 제목·본문·CTA 가 전부 capability 응답에서
-    // 온다. 그래서 자리 선언이 셋으로 갈린다: 응답의 어느 키가 빠지든 하나가 잡는다.
-    expectFilled: [
-      { selector: "section h1, section h3" },
-      { selector: "section p" },
-      { selector: "button" },
-    ],
+    "landing-main": {
+      expectInvokes: ["landing.content"],
+      // 이 전시물은 화면 전체가 카피다 — 제목·본문·CTA 가 전부 capability 응답에서
+      // 온다. 그래서 자리 선언이 셋으로 갈린다: 응답의 어느 키가 빠지든 하나가 잡는다.
+      expectFilled: [
+        { selector: "section h1, section h3" },
+        { selector: "section p" },
+        { selector: "button" },
+      ],
+    },
   },
   createKnowledge: () => [createLandingKnowledge()],
   createScriptedProvider: () => createLandingScriptProvider(),

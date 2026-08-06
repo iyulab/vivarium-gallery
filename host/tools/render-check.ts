@@ -46,6 +46,29 @@ export interface RenderCheckOptions extends ExhibitRenderExpectations {
   timeoutMs?: number;
 }
 
+/**
+ * 한 아티팩트의 선언을 꺼낸다 — 선언이 **화면마다** 있으므로 해석 규칙도 한 곳에 둔다.
+ *
+ * 없으면 `{}` 다: 선언되지 않은 화면은 **판정되지 않을 뿐 실패가 아니다.** 화면을
+ * 더하는 일이 게이트를 빨갛게 만들면 아무도 화면을 더하지 않는다. 대신 덮이지 않은
+ * 화면이 몇인지는 `undeclaredArtifacts` 가 세고, 게이트가 그 수를 보고한다 —
+ * 판정이 없는 것과 판정이 통과한 것은 다르고, 둘을 같은 초록으로 보이게 두지 않는다.
+ */
+export function renderFor(
+  exhibit: { render?: Record<string, ExhibitRenderExpectations> },
+  artifactId: string,
+): ExhibitRenderExpectations {
+  return exhibit.render?.[artifactId] ?? {};
+}
+
+/** 선언이 없는 아티팩트 — 초록이 덮지 못한 화면의 목록이다. */
+export function undeclaredArtifacts(exhibit: {
+  artifacts: Record<string, string>;
+  render?: Record<string, ExhibitRenderExpectations>;
+}): string[] {
+  return Object.keys(exhibit.artifacts).filter((id) => !exhibit.render?.[id]);
+}
+
 export interface InteractionRecord {
   selector: string;
   event: string;

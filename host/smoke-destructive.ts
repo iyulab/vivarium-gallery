@@ -33,7 +33,7 @@ import { fileURLToPath } from "node:url";
 import { addSchemaOp, createChangeset, finalize } from "@vivariumjs/changeset";
 import exhibit from "../exhibits/contacts/exhibit.ts";
 import { COLUMN_WITH_FAX, RETIRED_FIELD } from "../exhibits/contacts/scripted.ts";
-import { checkRender } from "./tools/render-check.ts";
+import { checkRender, renderFor } from "./tools/render-check.ts";
 import { runRollbackGate } from "./tools/rollback-gate.ts";
 
 const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:8890";
@@ -401,7 +401,7 @@ async function main(): Promise<void> {
       "utf8",
     );
     // 자리는 **전시물이 선언한다** — 무엇이 항상 차 있어야 하는지는 전시물만 안다.
-    const declared = exhibit.render;
+    const declared = renderFor(exhibit, ARTIFACT_ID);
     if (!declared?.expectFilled?.length) {
       throw new Error("contacts 가 자리를 선언하지 않았다 — 이 단언은 선언이 있어야 성립한다");
     }

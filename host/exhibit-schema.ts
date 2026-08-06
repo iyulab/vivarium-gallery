@@ -106,12 +106,31 @@ export interface ExhibitDefinition {
    * schema·data 를 둘 다 시드하는 전시물이 3-facet 동반 변경의 무대가 된다.
    */
   data?: Record<string, unknown>;
-  /** 캔버스·프리뷰가 렌더하는 아티팩트 (현 호스트는 단일-아티팩트 렌더). */
+  /**
+   * 전시물이 **앞세우는** 아티팩트.
+   *
+   * 호스트는 `artifacts` **전부**를 렌더한다 — 이것은 "유일한 화면"이 아니라
+   * **첫 화면**이다. 캔버스 순서의 머리이고, 아카이브 뷰어가 대표로 담는 것이며,
+   * 단일 화면만 다루는 게이트가 어느 것을 겨눌지 고를 때 읽는 값이다.
+   * 지목이 `artifacts` 에 없으면 서버가 기동을 거부한다 — 조용히 다른 것을
+   * 대신 담으면 지목이 빗나간 사실 자체가 사라진다.
+   */
   primaryArtifactId: string;
   /** 브라우저 샌드박스에 grant 되는 capability 목록 (mock 데이터 — 규율 2). */
   capabilities: ExhibitCapability[];
-  /** 시드가 옳게 그려진 모습의 선언 — 게이트가 전시물 이름 없이 판정하게 한다. */
-  render?: ExhibitRenderExpectations;
+  /**
+   * 시드가 옳게 그려진 모습의 선언 — 게이트가 전시물 이름 없이 판정하게 한다.
+   *
+   * **키는 `artifactId` 다.** 전시물이 화면을 여럿 가질 수 있으므로 선언도 화면마다
+   * 있어야 한다 — 블록 하나가 전시물 전체를 대표하던 동안, 둘째 화면의 자리와
+   * 상호작용은 **선언할 자리가 없었고**, 없는 선언은 아무것도 판정하지 않는다.
+   * 통째로 죽은 둘째 화면 앞에서 모든 게이트가 초록이던 것이 그 결과다.
+   *
+   * 선언이 없는 아티팩트는 판정되지 않는다(빠뜨림은 사각이지 실패가 아니다 —
+   * 화면을 더하는 일이 게이트를 빨갛게 만들면 아무도 화면을 더하지 않는다).
+   * 덮이지 않은 화면이 몇인지는 게이트가 **센다**.
+   */
+  render?: Record<string, ExhibitRenderExpectations>;
   /** 서버 측 knowledge 포트 (선택). */
   createKnowledge?: () => KnowledgeSource[];
   /** 결정적 스모크용 scripted provider (서버 측, 선택). */
