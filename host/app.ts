@@ -44,6 +44,9 @@ const rejectBtn = document.getElementById("reject-btn") as HTMLButtonElement;
 const rollbackBtn = document.getElementById("rollback-btn") as HTMLButtonElement;
 const ledgerListEl = document.getElementById("ledger-list") as HTMLElement;
 const statusEl = document.getElementById("status") as HTMLElement;
+const seedStateEl = document.getElementById("seed-state") as HTMLElement;
+const seedStateTextEl = document.getElementById("seed-state-text") as HTMLElement;
+const reseedBtn = document.getElementById("reseed-btn") as HTMLButtonElement;
 const selectionEl = document.getElementById("selection-info") as HTMLElement;
 const clearSelectionBtn = document.getElementById("clear-selection-btn") as HTMLButtonElement;
 
@@ -143,6 +146,55 @@ async function refreshLedger(): Promise<void> {
   renderLedger(Array.isArray(ledger) ? ledger.filter((e: any) => e.target === target) : []);
 }
 
+// ── seeding ──────────────────────────────────────────────────────────────
+/**
+ * 시드는 **조건부다.**
+ *
+ * 예전에는 페이지를 열 때마다 무조건 재시드했다. *"매 방문이 선언된 상태에서
+ * 시작한다"* 는 성질은 앱이 원하는 것이지만, 적용된 변경이 있으면 그것을 **파괴한다** —
+ * CLI 로 구동한 run 을 여기서 볼 수 없고, **보러 가는 행위가 볼 것을 없앤다.**
+ * 실측(cycle-174): 적용 뒤 1148B 였던 아티팩트가 새로고침 뒤 1109B(시드)로 돌아갔고,
+ * **원장에는 apply 기록이 그대로 남아** 월드와 원장이 어긋난 상태가 됐다.
+ *
+ * 그래서 조건은 *"살아 있는 세계가 시드와 같은가"* 다. 같으면 재시드는 무의미하고,
+ * 다르면 재시드는 **파괴**다. 되돌리고 싶으면 그것은 요청해야 하는 일이지 페이지를
+ * 여는 부작용이 아니다 — 그 문이 `reseed-btn` 이다.
+ *
+ * 어느 쪽이든 **화면이 무엇을 했는지 말한다.** 조용히 지우지 않는 것이 이 항목의
+ * 본체이므로, 조용히 보존하는 것도 답이 아니다.
+ */
+function sameAsSeed(live: Record<string, string>): boolean {
+  const seedIds = Object.keys(exhibit.artifacts);
+  const liveIds = Object.keys(live ?? {});
+  if (seedIds.length !== liveIds.length) return false;
+  return seedIds.every((id) => live[id] === exhibit.artifacts[id]);
+}
+
+async function seedTarget(): Promise<void> {
+  await post("/stage/targets", {
+    target,
+    artifacts: exhibit.artifacts,
+    ...(exhibit.schema ? { schema: exhibit.schema } : {}),
+    ...(exhibit.data ? { data: exhibit.data } : {}),
+  });
+}
+
+function saySeedState(text: string, preserved: boolean): void {
+  seedStateTextEl.textContent = text;
+  seedStateEl.classList.toggle("preserved", preserved);
+  reseedBtn.hidden = !preserved;
+}
+
+/** 살아 있는 세계를 읽거나, 없으면 null — 미지 타깃은 어댑터가 throw 한다(계약 §Error taxonomy). */
+async function readLiveWorld(): Promise<Record<string, string> | null> {
+  try {
+    const live = await get(`/stage/targets/${target}/artifacts`);
+    return live.artifacts ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // ── canvases ─────────────────────────────────────────────────────────────
 /** 살아 있는 상태를 화면 **전부**에 그린다. */
 async function renderCanvases(): Promise<void> {
@@ -167,6 +219,33 @@ clearSelectionBtn.addEventListener("click", () => {
   selectedIds = [];
   selectedArtifactId = "";
   updateSelectionInfo();
+});
+
+// 되돌리기는 **요청해야 하는 일**이다 — 페이지를 여는 부작용이 아니라.
+reseedBtn.addEventListener("click", async () => {
+  reseedBtn.disabled = true;
+  try {
+    setStatus("시드로 되돌리는 중…");
+    await seedTarget();
+    const seeded = await get(`/stage/targets/${target}/artifacts`);
+    liveArtifacts = seeded.artifacts;
+    await renderCanvases();
+    // 세션과 보류 제안은 사라진 세계를 가리키므로 함께 버린다.
+    hasSession = false;
+    pendingProposal = null;
+    appliedSessionId = null;
+    setPendingUi(false);
+    selectedIds = [];
+    selectedArtifactId = "";
+    updateSelectionInfo();
+    saySeedState("시드로 되돌렸습니다.", false);
+    await refreshLedger();
+    setStatus("준비 완료");
+  } catch (err) {
+    setStatus(`시드 복원 실패: ${errorMessage(err)}`, true);
+  } finally {
+    reseedBtn.disabled = false;
+  }
 });
 
 // ── proposal preview UI toggling ───────────────────────────────────────
@@ -247,20 +326,24 @@ async function init(): Promise<void> {
   }
   await Promise.all([...canvases.values(), ...previews.values()].map((s) => s.whenReady()));
 
-  // POST /stage/targets always succeeds and (re)seeds the target — the
-  // in-memory adapter's SeedTarget is unconditional. That is what this app
-  // wants (every visit starts from the exhibit's declared state), but it is
-  // NOT idempotent, which an earlier note here claimed: if the target already
-  // carries applied changes, opening this page discards them. So a run driven
-  // through the CLI cannot be viewed here afterwards — the act of looking
-  // destroys what you came to look at. Capture the result before opening it,
-  // or drive the run through this page in the first place.
-  await post("/stage/targets", {
-    target,
-    artifacts: exhibit.artifacts,
-    ...(exhibit.schema ? { schema: exhibit.schema } : {}),
-    ...(exhibit.data ? { data: exhibit.data } : {}),
-  });
+  // 재시드는 **조건부다** (채택 U — 위 seeding 절 참조). 살아 있는 세계가 시드와
+  // 같으면 재시드는 무의미하고, 다르면 재시드는 파괴다.
+  const before = await readLiveWorld();
+  if (before === null) {
+    await seedTarget();
+    saySeedState("타깃이 없어 시드로 시작했습니다.", false);
+  } else if (sameAsSeed(before)) {
+    saySeedState("시드 상태입니다.", false);
+  } else {
+    const ledger = await get("/stage/ledger");
+    const applied = Array.isArray(ledger)
+      ? ledger.filter((e: any) => e.target === target && e.kind === "apply-completed").length
+      : 0;
+    saySeedState(
+      `적용된 변경이 있어 시드로 되돌리지 않았습니다 — 원장 apply ${applied}건.`,
+      true,
+    );
+  }
   const seeded = await get(`/stage/targets/${target}/artifacts`);
   liveArtifacts = seeded.artifacts;
   await renderCanvases();
