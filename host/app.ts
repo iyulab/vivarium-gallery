@@ -59,7 +59,62 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+/**
+ * 실패를 **거부와 오류로 갈라** 보여준다.
+ *
+ * 정당한 거부를 "오류"라 부르는 것은 cycle-158 이 스택에서 닫은 결함의 **한 층 위**다.
+ * 거부는 제품이 일하고 있다는 신호이고 다음 행동이 있다(문서를 고친다); 오류는
+ * 무언가 깨졌다는 신호이고 다음 행동이 다르다(신고한다). 같은 빨강으로 보이면
+ * 사람은 그 둘을 구별할 수 없고, 구별하지 못하면 거부를 결함으로 읽는다.
+ */
+function showFailure(where: string, err: unknown): void {
+  if (err instanceof HttpFailure && err.isRefusal) {
+    const reason = err.reason ?? "거부";
+    setStatus(`거부됨 (${reason}) — ${where}`, false);
+    statusEl.className = "refused";
+    renderTextBlocks([[`거부 사유 — ${reason}`, err.detail]]);
+    return;
+  }
+  setStatus(`오류: ${where} — ${errorMessage(err)}`, true);
+}
+
 // ── HTTP helpers (mirrors smoke.ts shapes) ───────────────────────────────
+/**
+ * 실패가 **구조를 들고** 온다.
+ *
+ * 예전에는 `HTTP nnn: {…}` 한 줄을 던졌고, 그러면 호출부가 거부와 오류를 구별하려면
+ * 자기가 만든 문자열을 되파싱해야 한다. 그 층은 이미 갈려 있다 —
+ * cycle-158 이 어댑터 층 거부를 **422 + `reason`** 으로, 진짜 결함을 **5xx** 로
+ * 갈랐고 `smoke-refusal` 7·8 이 그 경계를 고정한다. 앱이 그것을 **읽지 못했을 뿐**이다.
+ */
+class HttpFailure extends Error {
+  readonly status: number;
+  readonly body: any;
+
+  constructor(method: string, path: string, status: number, body: any) {
+    super(`${method} ${path} — HTTP ${status}: ${JSON.stringify(body)}`);
+    this.name = "HttpFailure";
+    this.status = status;
+    this.body = body;
+  }
+
+  /** 계약상 거부 — 스택이 문서를 **받지 않기로 판정**했다. 결함이 아니다. */
+  get isRefusal(): boolean {
+    return this.status === 422 || this.status === 409;
+  }
+
+  /** 라이브러리·호스트가 붙인 구조적 사유(`AdapterRefused` · `RefusalReason` 등). */
+  get reason(): string | null {
+    return typeof this.body?.reason === "string" ? this.body.reason : null;
+  }
+
+  /** 사람이 읽을 한 줄 — 없으면 상태 코드가 아는 전부다. */
+  get detail(): string {
+    const e = this.body?.error;
+    return typeof e === "string" && e.trim() !== "" ? e : `HTTP ${this.status}`;
+  }
+}
+
 async function post(path: string, body: unknown): Promise<any> {
   const res = await fetch(path, {
     method: "POST",
@@ -68,7 +123,7 @@ async function post(path: string, body: unknown): Promise<any> {
   });
   const text = await res.text();
   const json = text ? JSON.parse(text) : {};
-  if (!res.ok) throw new Error(`POST ${path} — HTTP ${res.status}: ${JSON.stringify(json)}`);
+  if (!res.ok) throw new HttpFailure("POST", path, res.status, json);
   return json;
 }
 
@@ -76,7 +131,7 @@ async function get(path: string): Promise<any> {
   const res = await fetch(path);
   const text = await res.text();
   const json = text ? JSON.parse(text) : {};
-  if (!res.ok) throw new Error(`GET ${path} — HTTP ${res.status}: ${JSON.stringify(json)}`);
+  if (!res.ok) throw new HttpFailure("GET", path, res.status, json);
   return json;
 }
 
@@ -242,7 +297,7 @@ reseedBtn.addEventListener("click", async () => {
     await refreshLedger();
     setStatus("준비 완료");
   } catch (err) {
-    setStatus(`시드 복원 실패: ${errorMessage(err)}`, true);
+    showFailure("시드 복원", err);
   } finally {
     reseedBtn.disabled = false;
   }
@@ -263,6 +318,24 @@ function setPendingUi(pending: boolean): void {
 // validator's retry errors (outcome.plan / outcome.retries) — surface them
 // instead of discarding (Nielsen #9: help users diagnose errors).
 const refusalEl = document.getElementById("refusal-detail") as HTMLElement;
+
+/**
+ * 제목/본문 쌍을 그 자리에 그린다. 모델·서버에서 온 텍스트는 **전부 신뢰 불가**이므로
+ * 언제나 `textContent` 이고 마크업이 아니다 — 이 규칙이 한 곳에 살게 하려고 뽑았다.
+ */
+function renderTextBlocks(blocks: Array<[string, string]>): void {
+  refusalEl.replaceChildren();
+  for (const [title, body] of blocks) {
+    if (body.trim() === "") continue;
+    const h = document.createElement("h3");
+    h.textContent = title;
+    const pre = document.createElement("pre");
+    pre.textContent = body;
+    refusalEl.append(h, pre);
+  }
+  refusalEl.hidden = refusalEl.childElementCount === 0;
+}
+
 function renderRefusal(outcome: any): void {
   refusalEl.replaceChildren();
   if (!outcome) {
@@ -416,7 +489,7 @@ async function sendChat(): Promise<void> {
     setStatus("프리뷰 준비됨 — 승인 또는 거부하세요");
     await refreshLedger();
   } catch (err) {
-    setStatus(`오류: ${errorMessage(err)}`, true);
+    showFailure("턴 처리", err);
     setPendingUi(pendingProposal !== null);
   } finally {
     sendBtn.disabled = false;
@@ -457,7 +530,7 @@ approveBtn.addEventListener("click", () => {
       setStatus("승인 및 적용 완료");
       await refreshLedger();
     } catch (err) {
-      setStatus(`승인 실패: ${errorMessage(err)}`, true);
+      showFailure("승인·적용", err);
       setPendingUi(true);
     }
   })();
@@ -484,7 +557,7 @@ rollbackBtn.addEventListener("click", () => {
       setStatus("롤백 완료");
       await refreshLedger();
     } catch (err) {
-      setStatus(`롤백 실패: ${errorMessage(err)}`, true);
+      showFailure("롤백", err);
       rollbackBtn.disabled = false;
     }
   })();
