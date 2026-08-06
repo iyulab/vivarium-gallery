@@ -35,13 +35,13 @@ import { fileURLToPath } from "node:url";
 import { artifactFingerprint } from "@vivariumjs/changeset";
 import exhibit from "../exhibits/dashboard/exhibit.ts";
 import { runRollbackGate } from "./tools/rollback-gate.ts";
-import { renderFor } from "./tools/render-check.ts";
+import { renderFor, undeclaredArtifacts } from "./tools/render-check.ts";
 
 const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:8890";
 const TARGET = exhibit.target;
 const ARTIFACT_ID = exhibit.primaryArtifactId;
 const SEED_CONTENT = exhibit.artifacts[ARTIFACT_ID];
-const TOTAL = 18;
+const TOTAL = 19;
 
 // Phase 6.e turn-cost instrumentation gate: every agent turn this smoke
 // drives must land in GET /agent/metrics (assertion 11).
@@ -758,6 +758,58 @@ async function main(): Promise<void> {
     ok(n, `전 전시물(${names.length})의 자리 선언이 시드에서 실제로 돌아간다 — ${readout.join(" · ")}`);
   } catch (err) {
     fail(n, "전 전시물의 자리 선언이 시드에서 실제로 돌아간다", err);
+  }
+
+  // ── 19. 덮이지 않은 화면을 **센다** ──────────────────────────────────────
+  // 사각은 여기 있었다: 단언 18 은 전 전시물을 훑지만 **primary 만** 본다. 화면이
+  // 여럿인 전시물에서 둘째를 선언하지 않으면 그 화면은 총량 판정으로 돌아가고,
+  // 통째로 죽어도 아무도 말하지 않는다(cycle-169 가 storefront 에서 실물로 봤다).
+  //
+  // 판정선은 cycle-173 이 세운 것을 그대로 쓴다: **선언이 없는 화면은 실패가 아니라
+  // 집계 대상**이다 — 화면을 더하는 일이 게이트를 빨갛게 만들면 아무도 더하지 않는다.
+  // 그러나 **이미 선언한 전시물이 화면을 더하고 선언을 빠뜨린 것**은 다르다. 그것은
+  // 옵트인하지 않은 것이 아니라 **빠뜨린 것**이고, 사각이 자라는 유일한 경로다.
+  n = 19;
+  try {
+    const { readdirSync, existsSync } = await import("node:fs");
+    const exhibitsDir = new URL("../exhibits/", import.meta.url);
+    const names = readdirSync(exhibitsDir).filter((name) =>
+      existsSync(new URL(`${name}/exhibit.ts`, exhibitsDir)),
+    );
+
+    let screens = 0;
+    let covered = 0;
+    const partial: string[] = [];
+    const readout: string[] = [];
+    for (const name of names) {
+      const ex = (await import(`../exhibits/${name}/exhibit.ts`)).default;
+      const all = Object.keys(ex.artifacts);
+      const uncovered = undeclaredArtifacts(ex);
+      screens += all.length;
+      covered += all.length - uncovered.length;
+      if (uncovered.length > 0 && uncovered.length < all.length) {
+        partial.push(`${name}: ${uncovered.join(", ")}`);
+      }
+      if (all.length > 1) readout.push(`${name} ${all.length - uncovered.length}/${all.length}`);
+    }
+
+    if (partial.length > 0) {
+      throw new Error(
+        `선언한 전시물이 화면을 빠뜨렸다 — ${partial.join(" ;; ")}. ` +
+          `전시물이 선언을 시작했으면 화면 전부를 선언해야 한다: 빠진 화면은 총량 판정으로 돌아가고, ` +
+          `통째로 죽어도 어떤 게이트도 말하지 않는다`,
+      );
+    }
+    if (covered !== screens) {
+      throw new Error(`전시물 전체가 선언을 갖는데 덮이지 않은 화면이 남았다 — ${covered}/${screens}`);
+    }
+    ok(
+      n,
+      `덮이지 않은 화면을 센다 — 전시물 ${names.length} · 화면 ${screens} · 선언 ${covered}/${screens}` +
+        (readout.length > 0 ? ` (다중 화면: ${readout.join(" · ")})` : ""),
+    );
+  } catch (err) {
+    fail(n, "덮이지 않은 화면을 센다", err);
   }
 
   console.log(`smoke: ${passCount}/${TOTAL - skipCount} PASS${skipNote}`);
