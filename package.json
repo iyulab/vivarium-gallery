@@ -13,8 +13,8 @@
   },
   "dependencies": {
     "@vivariumjs/agent": "^0.1.0",
-    "@vivariumjs/changeset": "^0.2.0",
-    "@vivariumjs/runtime": "^0.1.0"
+    "@vivariumjs/changeset": "^0.3.0",
+    "@vivariumjs/runtime": "^0.2.0"
   },
   "devDependencies": {
     "jsdom": "^29.1.1"
