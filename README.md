@@ -74,7 +74,7 @@ open http://localhost:8890/host/index.html
 **전부 한 번에 — 이것이 CI 가 돌리는 것과 같은 명령이다:**
 
 ```bash
-node host/tools/run-gates.ts            # 기대: run-gates: 5/5 gates passed
+node host/tools/run-gates.ts            # 전 게이트 — 통과 수는 이 명령이 답한다
 node host/tools/run-gates.ts --list     # 게이트 목록과 각자 필요한 전시물
 node host/tools/run-gates.ts --gate smoke-refusal   # 하나만
 ```
@@ -92,15 +92,12 @@ node host/tools/run-gates.ts --gate smoke-refusal   # 하나만
 
 ```bash
 # 결정적 회귀 (scripted provider 필수 — MODEL_PROVIDER 미설정으로 서버 기동)
-node host/smoke.ts        # 기대: smoke: 17/17 PASS (12 = 롤백 공통 게이트,
-                          #        13 = 정적 인덱스 생성(결정적), 14 = 렌더 검증,
-                          #        15 = 재생성 후 워킹트리 청결,
-                          #        16 = 마운트 이후 상호작용 판정,
-                          #        17 = 자리 선언 — 총량이 잡는지는 화면 크기가 정한다)
+node host/smoke.ts        # dashboard 왕복 + 인덱스 결정성 + 워킹트리 청결 +
+                          # 마운트 이후 상호작용 + 자리 선언 + 덮이지 않은 화면 집계
                           # 전제: 호스트 서버가 --exhibit dashboard 로 기동
 
 # 3-facet 동반 변경 게이트 — 전제: 호스트 서버가 --exhibit inventory 로 기동
-node host/smoke-3facet.ts # 기대: smoke-3facet: 8/8 PASS
+node host/smoke-3facet.ts # 스키마·데이터·UI 동반 변경과 동반 롤백
 
 # 거부 경로 게이트 — 같은 전제(--exhibit inventory)
 #   거부는 결함이 아니라 기능이다. 단언 1~3은 거부가 **일어나야** 통과하고,
@@ -108,15 +105,15 @@ node host/smoke-3facet.ts # 기대: smoke-3facet: 8/8 PASS
 #   게이트는 changeset 이 선언한 facet 만 본다). 단언 7~8은 거부가 **크래시와
 #   구별되는지**를 판정하고(422 vs 500 — 8이 대조군), 9는 그 거부가 **어디까지만**
 #   있는지를 기록한다(부재 표적 거부는 엔티티 층에만 — 통과가 곧 결함).
-node host/smoke-refusal.ts # 기대: smoke-refusal: 9/9 PASS
+node host/smoke-refusal.ts
 
 # 승인 전 검토 표면 — jsdom 판정(브라우저 불필요). 같은 전제(--exhibit inventory)
-node host/smoke-review.ts  # 기대: smoke-review: 5/5 PASS
+node host/smoke-review.ts  # 승인 전 검토 표면 + 주입 안전 + 편집 diff 구속 + 크기 보고
 
 # 파괴성 축 — 전제: 호스트 서버가 --exhibit contacts 로 기동
 #   성공의 형태가 턴마다 다르다: 적용되고 **롤백이 잃은 값을 되돌려야** 성공인 턴,
 #   **거부되어야** 성공인 턴, 통과하되 **기록에 남아야** 성공인 턴.
-node host/smoke-destructive.ts # 기대: smoke-destructive: 9/9 PASS
+node host/smoke-destructive.ts
 
 # 소비 재현성 (레지스트리 신선도·클린룸 설치)
 node host/tools/verify-consumption.ts
@@ -185,11 +182,13 @@ node host/tools/verify-consumption.ts
 
 | 이름 | 도메인 | 변경 유형 축 담당 | 상태 (runs/ 아카이브 참조) |
 | --- | --- | --- | --- |
-| [dashboard](exhibits/dashboard/) | dashboard | build·surgical·bulk | `smoke` 17/17 상시 게이트 · opus run 4건 |
+| [dashboard](exhibits/dashboard/) | dashboard | build·surgical·bulk | `smoke` 상시 게이트 · opus run 4건 |
 | [landing-page](exhibits/landing-page/) | landing-page | build·surgical·theme·restructure | opus·qwen 완주 각 1건 (모델 축 비교 — qwen 날조 관찰 1건) |
 | [form-survey](exhibits/form-survey/) | form-survey | build·delete·bulk·i18n | opus 완주 1건 |
-| [inventory](exhibits/inventory/) | inventory | **facet 축** — 스키마+데이터+UI 동반 | `smoke-3facet` 8/8 · `smoke-refusal` 9/9 · `smoke-review` 5/5 · 실모델 run 2건 (**둘 다 미완주** — 아래) |
-| [contacts](exhibits/contacts/) | contacts | **파괴성 축** — 제거·타입 변경·기존 데이터를 위반하는 제약 | `smoke-destructive` 9/9 · 실모델 run 1건 (**미완주 1/2** — 아래) |
+| [inventory](exhibits/inventory/) | inventory | **facet 축** — 스키마+데이터+UI 동반 | `smoke-3facet` · `smoke-refusal` · `smoke-review` · 실모델 run 2건 (**둘 다 미완주** — 아래) |
+| [contacts](exhibits/contacts/) | contacts | **파괴성 축** — 제거·타입 변경·기존 데이터를 위반하는 제약 | `smoke-destructive` · 실모델 run 1건 (**미완주 1/2** — 아래) |
+| [ops-console](exhibits/ops-console/) | ops-console | **규모 축** — 수백 줄·엔티티 3·행 39 의 화면에서 어떤 하한이 변별력을 잃는가 | `smoke-scale` · 아카이브된 실모델 run 없음 |
+| [storefront](exhibits/storefront/) | storefront | **구성 축** — 화면이 둘. 한 문서가 둘을 함께 바꾸고 함께 되돌린다 | `smoke-compose` · 아카이브된 실모델 run 없음 |
 
 세션 축은 실측 종결 — 재시작 후 세션 계보가 단절되는 갭을 확인했고,
 업스트림 재수화 원칙으로 이어졌다.
