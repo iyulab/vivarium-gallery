@@ -27,8 +27,9 @@
  * 스키마에 대고 판정하기 때문이다(agent 0.2.1 소스에서 수정, 미게시). 그동안 ① 의
  * 폐기는 손으로 저작한 같은 모양의 changeset 이 무대에 올린다 — 롤백이 잃은 값을
  * 되돌리는가는 stage 의 판정이지 저작자의 것이 아니므로, 판정 대상은 바뀌지 않는다.
- * agent ≥0.2.1 을 소비하면 10 이 빨개진다: 그때 10 을 "에이전트가 저작한다"로 뒤집고
- * 단언 2 를 에이전트 제안으로 되돌린다.
+ * 10 은 **설치된 agent 버전으로 기대를 가른다**: 0.2.1 미만이면 소진(결함 고정), 이상이면
+ * 에이전트가 같은 모양을 저작해야 한다(수정 확인). 0.2.1 을 소비하게 되면 단언 2 를 에이전트
+ * 제안으로 되돌리고 10 의 0.2.0 갈래를 지운다.
  *
  * Prerequisite: stage-host (8891) + host/server.ts (8890, **--exhibit contacts**,
  * MODEL_PROVIDER 미설정 — 결정성은 scripted provider 에 의존).
@@ -55,6 +56,18 @@ const ENTITY = "Contact";
 const ABSENT_ENTITY = "NoSuchEntity";
 const TOTAL = 10;
 const FACET_KEYS = ["schema", "data", ARTIFACT_ID];
+/**
+ * 단언 10 이 판정하는 것은 **설치된** agent 다. 샘플의 range(`^0.2.0`)는 0.2.1 을 덮고
+ * lockfile 은 추적하지 않으므로, 0.2.1 이 게시되는 순간 CI 의 fresh install 이 그것을 받는다
+ * — 그래서 기대를 버전으로 가른다(smoke.ts 의 `agentVersion` 과 같은 문법).
+ */
+const agentVersion: string = JSON.parse(
+  readFileSync(new URL("../node_modules/@vivariumjs/agent/package.json", import.meta.url), "utf8"),
+).version;
+const agentClearsRetired = ((): boolean => {
+  const [maj, min, pat] = agentVersion.split(".").map(Number);
+  return maj > 0 || min > 2 || (min === 2 && pat >= 1);
+})();
 
 let passCount = 0;
 const failures: string[] = [];
@@ -488,8 +501,9 @@ async function main(): Promise<void> {
 
   // ── 10. 게시본 agent 는 폐기 턴을 저작하지 못한다 (고정 — 뒤집을 자리) ─────
   n = 10;
-  const desc10 =
-    "게시본 agent 는 '지우고 비우는' 폐기 턴을 저작하지 못한다 — 데이터 패치를 지워진 뒤의 스키마로 판정한다 (고정: agent ≥0.2.1 소비 시 뒤집는다)";
+  const desc10 = agentClearsRetired
+    ? `agent ${agentVersion} 은 '지우고 비우는' 폐기 턴을 저작한다 — 스키마 제거·행마다 비우기·열 제거 (0.2.0 결함 해소 확인)`
+    : `게시본 agent ${agentVersion} 은 '지우고 비우는' 폐기 턴을 저작하지 못한다 — 데이터 패치를 지워진 뒤의 스키마로 판정한다 (결함 고정: ≥0.2.1 에서 해소)`;
   try {
     await seed();
     const turn = await post("/agent/session", {
@@ -497,15 +511,24 @@ async function main(): Promise<void> {
       editContext: null,
       artifacts: [{ artifactId: ARTIFACT_ID, content: SEED_CONTENT }],
     });
-    if (turn.proposal) {
-      throw new Error(
-        "에이전트가 폐기 턴을 저작했다 — 결함이 풀렸다(agent ≥0.2.1?). 이 단언을 '에이전트가 저작한다'로 뒤집고 " +
-          "단언 2 를 손 저작 changeset 대신 에이전트 제안으로 되돌릴 것",
+    if (agentClearsRetired) {
+      if (!turn.proposal) throw new Error(`agent ${agentVersion} 이 폐기 턴을 저작하지 못했다 — ${JSON.stringify(turn.outcome)}`);
+      const patches = turn.proposal.changeset.patches;
+      const removes = patches.schema.some((op: any) => op.op === "field.remove" && op.field === RETIRED_FIELD);
+      const clears = patches.data.some((p: any) =>
+        p.operations.some((o: any) => o.op === "update" && o.set && o.set[RETIRED_FIELD] === null),
       );
-    }
-    const errors: string = (turn.outcome?.retries ?? []).flatMap((r: any) => r.errors).join(" ");
-    if (!errors.includes(`"${RETIRED_FIELD}"`) || !errors.includes("does not declare")) {
-      throw new Error(`소진 이유가 고정한 결함이 아니다 — ${errors.slice(0, 300)}`);
+      if (!removes || !clears || patches.ui.length < 1) {
+        throw new Error(`폐기 턴이 3-facet 이 아니다: ${JSON.stringify({ removes, clears, ui: patches.ui.length })}`);
+      }
+    } else {
+      if (turn.proposal) {
+        throw new Error(`agent ${agentVersion} 이 폐기 턴을 저작했다 — 버전 판정(agentClearsRetired)이 틀렸다`);
+      }
+      const errors: string = (turn.outcome?.retries ?? []).flatMap((r: any) => r.errors).join(" ");
+      if (!errors.includes(`"${RETIRED_FIELD}"`) || !errors.includes("does not declare")) {
+        throw new Error(`소진 이유가 고정한 결함이 아니다 — ${errors.slice(0, 300)}`);
+      }
     }
     ok(n, desc10);
   } catch (err) {
