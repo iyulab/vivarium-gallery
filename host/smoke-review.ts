@@ -56,6 +56,15 @@ async function main(): Promise<void> {
   const doc = dom.window.document;
   const root = doc.getElementById("review") as unknown as HTMLElement;
 
+  // The host hands the agent the live schema/data of a 3-facet exhibit, so the
+  // target has to exist before the first turn — seed it like every other gate.
+  await post("/stage/targets", {
+    target: exhibit.target,
+    artifacts: exhibit.artifacts,
+    schema: exhibit.schema,
+    data: exhibit.data,
+  });
+
   const turn = await post("/agent/session", {
     intent: "품목에 재입고 예정일을 추가하고 표에도 보여줘",
     editContext: null,

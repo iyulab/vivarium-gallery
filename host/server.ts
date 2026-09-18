@@ -6,6 +6,8 @@
  *
  *   POST /agent/session  { intent, editContext?, artifacts }  → turn 1
  *   POST /agent/refine   { instruction, editContext?, baseArtifacts? } → turn N+1
+ *   (both supply the live schema/data facets — with their stage fingerprints as
+ *    `base` — for exhibits that seed them; refine re-reads them on a re-base)
  *   GET  /agent/history · GET /agent/metrics
  *   GET  /exhibit        → 로드된 전시물의 meta/target/primaryArtifactId
  *
@@ -28,7 +30,7 @@ import { join, normalize, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { stripTypeScriptTypes } from "node:module";
 import { createProposalSession } from "@vivariumjs/agent";
-import type { ProposalSession } from "@vivariumjs/agent";
+import type { DataInput, ProposalSession, RefineOverrides, SchemaInput } from "@vivariumjs/agent";
 import type { ExhibitDefinition } from "./exhibit-schema.ts";
 import { createAnthropicProvider } from "./providers/anthropic.ts";
 import { createGpustackProvider } from "./providers/gpustack.ts";
@@ -100,6 +102,52 @@ const provider = instrumentProvider(resolveProvider(), metrics);
 
 let session: ProposalSession | null = null;
 
+// ─── Live non-UI facets (the adapter side of the agent's facet inputs) ──────
+//
+// The agent authors schema/data operations against a view of the live facet
+// and declares that view's identity in the changeset's baseState — but the
+// identity (ref + fingerprint) is adapter-defined, so only the host holding
+// the adapter can supply it. Stage reports it per drift-gate ref; its
+// in-memory adapter keys the two non-UI facets `schema` and `data`.
+//
+// Supplied only for facets the exhibit seeds: a UI-only exhibit has no schema
+// to author against, and an empty view would put a section in every prompt
+// that says nothing.
+
+interface LiveFacets {
+  schema?: SchemaInput;
+  data?: DataInput;
+}
+
+/** Stage keeps fields as a record keyed by name; the agent's view is the spec's list form. */
+function toSchemaInput(schema: any, fingerprint: string | undefined): SchemaInput {
+  const entities = Object.entries(schema?.entities ?? {}).map(([name, entity]: [string, any]) => ({
+    name,
+    fields: Object.entries(entity?.fields ?? {}).map(([key, field]: [string, any]) => ({
+      name: String(field?.name ?? key),
+      type: String(field?.type),
+      ...(typeof field?.required === "boolean" ? { required: field.required } : {}),
+    })),
+  }));
+  return { base: fingerprint ? { ref: "schema", fingerprint } : null, entities };
+}
+
+async function readLiveFacets(): Promise<LiveFacets> {
+  if (exhibit.schema === undefined && exhibit.data === undefined) return {};
+  const res = await fetch(`${stageUrl}/targets/${exhibit.target}/artifacts`);
+  // Refusing to guess is the point: authoring without the live view is the
+  // defect these inputs exist to remove, so a missing target is an error.
+  if (!res.ok) throw new Error(`live facets unavailable for ${exhibit.target} — stage answered HTTP ${res.status}`);
+  const world = await res.json();
+  const facets: LiveFacets = {};
+  if (exhibit.schema !== undefined) facets.schema = toSchemaInput(world.schema, world.fingerprints?.schema);
+  if (exhibit.data !== undefined) {
+    const fingerprint: string | undefined = world.fingerprints?.data;
+    facets.data = { base: fingerprint ? { ref: "data", fingerprint } : null, entities: world.data ?? {} };
+  }
+  return facets;
+}
+
 /** Wire shape used by this host: an array of {artifactId, content} or a record. */
 function toArtifactsRecord(input: unknown): Record<string, string> {
   if (Array.isArray(input)) {
@@ -121,11 +169,13 @@ async function handleAgent(pathname: string, body: Record<string, unknown>): Pro
       knowledge: exhibit.createKnowledge?.() ?? [],
       sessionId: `gallery:${exhibit.meta.name}`,
     });
+    const facets = await readLiveFacets();
     const startedAt = performance.now();
     const result = await session.propose({
       intent: String(body.intent),
       editContext: (body.editContext as never) ?? null,
       artifacts: toArtifactsRecord(body.artifacts),
+      ...facets,
     });
     metrics.completeTurn({
       endpoint: "session",
@@ -147,10 +197,14 @@ async function handleAgent(pathname: string, body: Record<string, unknown>): Pro
   }
   if (pathname === "/agent/refine") {
     if (!session) throw new Error("no session — POST /agent/session first");
-    const overrides: { editContext?: never; baseArtifacts?: Record<string, string> } = {};
+    const overrides: RefineOverrides = {};
     if (body.editContext !== undefined) overrides.editContext = body.editContext as never;
     if (body.baseArtifacts !== undefined) {
+      // A re-base is one snapshot of the world: the caller says the world moved
+      // by sending the live artifacts, so the non-UI facets are re-read with
+      // them. Re-basing the UI alone would declare a state that never existed.
       overrides.baseArtifacts = toArtifactsRecord(body.baseArtifacts);
+      Object.assign(overrides, await readLiveFacets());
     }
     const startedAt = performance.now();
     const result = await session.refine(

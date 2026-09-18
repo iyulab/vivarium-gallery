@@ -21,19 +21,28 @@
  * 0.6.0 범프로 빨개진 뒤 ② 문법으로 뒤집혔다. 같은 방식으로 고정해 둔 자리가
  * 생기면 실패 메시지에 뒤집는 방법을 적는다.
  *
+ * **단언 10 은 게시본 agent 의 결함을 고정한다.** 호스트가 라이브 스키마를 공급하자
+ * agent 0.2.0 의 저작 시점 표적 검사가 처음 구동됐고, "필드를 지우고 그 값을 비우는"
+ * 폐기 턴을 저작할 수 없다는 것이 드러났다 — 데이터 패치를 필드가 **이미 지워진**
+ * 스키마에 대고 판정하기 때문이다(agent 0.2.1 소스에서 수정, 미게시). 그동안 ① 의
+ * 폐기는 손으로 저작한 같은 모양의 changeset 이 무대에 올린다 — 롤백이 잃은 값을
+ * 되돌리는가는 stage 의 판정이지 저작자의 것이 아니므로, 판정 대상은 바뀌지 않는다.
+ * agent ≥0.2.1 을 소비하면 10 이 빨개진다: 그때 10 을 "에이전트가 저작한다"로 뒤집고
+ * 단언 2 를 에이전트 제안으로 되돌린다.
+ *
  * Prerequisite: stage-host (8891) + host/server.ts (8890, **--exhibit contacts**,
  * MODEL_PROVIDER 미설정 — 결정성은 scripted provider 에 의존).
  *
  * Usage: node host/smoke-destructive.ts
- * Exit 0 + "smoke-destructive: 9/9 PASS" on success; exit 1 otherwise.
+ * Exit 0 + "smoke-destructive: 10/10 PASS" on success; exit 1 otherwise.
  */
 
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { addSchemaOp, createChangeset, finalize } from "@vivariumjs/changeset";
+import { addDataPatch, addSchemaOp, addUiPatch, createChangeset, finalize } from "@vivariumjs/changeset";
 import exhibit from "../exhibits/contacts/exhibit.ts";
-import { COLUMN_WITH_FAX, RETIRED_FIELD } from "../exhibits/contacts/scripted.ts";
+import { COLUMN_ANCHOR, COLUMN_WITH_FAX, RETIRED_FIELD } from "../exhibits/contacts/scripted.ts";
 import { checkRender, renderFor } from "./tools/render-check.ts";
 import { runRollbackGate } from "./tools/rollback-gate.ts";
 
@@ -44,7 +53,7 @@ const SEED_CONTENT = exhibit.artifacts[ARTIFACT_ID];
 const ENTITY = "Contact";
 /** 실재하지 않는 엔티티 — 저작 시점 검사가 아니라 **어댑터**를 시험하기 위한 표적. */
 const ABSENT_ENTITY = "NoSuchEntity";
-const TOTAL = 9;
+const TOTAL = 10;
 const FACET_KEYS = ["schema", "data", ARTIFACT_ID];
 
 let passCount = 0;
@@ -123,6 +132,47 @@ function handAuthored(intent: string, op: Record<string, unknown>): any {
   return approve(cs, cs.fingerprint);
 }
 
+/**
+ * 손으로 저작한 3-facet 폐기 changeset — 에이전트 턴과 같은 모양(스키마 제거 · 행마다
+ * 값 비우기 · 열 제거)이고, 세 facet 의 base 를 선언한다. 단언 10 이 고정한 결함이
+ * 게시본에서 풀리기 전까지 ① 을 무대에 올리는 자리다.
+ */
+function retireChangeset(fingerprints: Record<string, string>): any {
+  let draft = createChangeset({
+    intent: "더 이상 쓰지 않는 팩스 번호를 연락처에서 폐기한다",
+    producedBy: "gallery/smoke-destructive (hand-authored — published agent cannot author it, see 10)",
+    createdAt: new Date().toISOString(),
+    baseState: [
+      { kind: "schema", ref: "schema", fingerprint: fingerprints.schema },
+      { kind: "data", ref: "data", fingerprint: fingerprints.data },
+      { kind: "ui-artifact", ref: ARTIFACT_ID, fingerprint: fingerprints[ARTIFACT_ID] },
+    ],
+  });
+  draft = addSchemaOp(draft, {
+    op: "field.remove",
+    entity: ENTITY,
+    field: RETIRED_FIELD,
+    explanation: "팩스 번호를 스키마에서 폐기한다.",
+  });
+  draft = addDataPatch(draft, {
+    id: "clear-fax",
+    explanation: "폐기하는 필드의 값을 행마다 비운다.",
+    operations: (exhibit.data as any)[ENTITY].map((row: any) => ({
+      op: "update",
+      entity: ENTITY,
+      where: { field: "id", equals: row.id },
+      set: { [RETIRED_FIELD]: null },
+    })),
+  });
+  draft = addUiPatch(draft, {
+    artifactId: ARTIFACT_ID,
+    baseContent: SEED_CONTENT,
+    newContent: SEED_CONTENT.replace(COLUMN_WITH_FAX, COLUMN_ANCHOR),
+    explanation: "표에서 팩스 열을 뺀다.",
+  });
+  return finalize(draft);
+}
+
 async function main(): Promise<void> {
   let n = 1;
 
@@ -162,21 +212,9 @@ async function main(): Promise<void> {
     (exhibit.data as any)[ENTITY].map((r: any) => [r.id, r[RETIRED_FIELD]]),
   );
   try {
-    const turn = await post("/agent/session", {
-      intent: "더 이상 쓰지 않는 팩스 번호를 연락처에서 폐기해 줘",
-      editContext: null,
-      artifacts: [{ artifactId: ARTIFACT_ID, content: SEED_CONTENT }],
-    });
-    if (!turn.proposal) throw new Error(`no proposal — ${JSON.stringify(turn.outcome)}`);
-    proposal = turn.proposal;
+    const changeset = retireChangeset(seededFingerprints);
+    proposal = { changeset, fingerprint: changeset.fingerprint };
     const patches = proposal.changeset.patches;
-    if (patches.schema.length < 1 || patches.data.length < 1 || patches.ui.length < 1) {
-      throw new Error(
-        `폐기 턴이 3-facet 이 아니다 — 스키마만 지우면 값은 남는다: ${JSON.stringify({
-          schema: patches.schema.length, data: patches.data.length, ui: patches.ui.length,
-        })}`,
-      );
-    }
     if (patches.schema[0].op !== "field.remove") {
       throw new Error(`스키마 연산이 field.remove 가 아니다 — ${patches.schema[0].op}`);
     }
@@ -200,9 +238,9 @@ async function main(): Promise<void> {
     if (live.artifacts[ARTIFACT_ID].includes(COLUMN_WITH_FAX)) {
       throw new Error("표에 열이 남아 있다");
     }
-    ok(n, "① 폐기 턴이 스키마·데이터·UI 세 곳에서 **함께 지운다** — 승인 하나·flip 하나");
+    ok(n, "① 폐기 changeset 이 스키마·데이터·UI 세 곳에서 **함께 지운다** — 승인 하나·flip 하나 (손 저작 — 10 참조)");
   } catch (err) {
-    fail(n, "① 폐기 턴이 스키마·데이터·UI 세 곳에서 **함께 지운다** — 승인 하나·flip 하나", err);
+    fail(n, "① 폐기 changeset 이 스키마·데이터·UI 세 곳에서 **함께 지운다** — 승인 하나·flip 하나 (손 저작 — 10 참조)", err);
   }
 
   // ── 3. ① 의 완주 기준 — 롤백이 **잃은 값**을 되돌린다 ────────────────────
@@ -447,6 +485,32 @@ async function main(): Promise<void> {
   }
 
   await seed();
+
+  // ── 10. 게시본 agent 는 폐기 턴을 저작하지 못한다 (고정 — 뒤집을 자리) ─────
+  n = 10;
+  const desc10 =
+    "게시본 agent 는 '지우고 비우는' 폐기 턴을 저작하지 못한다 — 데이터 패치를 지워진 뒤의 스키마로 판정한다 (고정: agent ≥0.2.1 소비 시 뒤집는다)";
+  try {
+    await seed();
+    const turn = await post("/agent/session", {
+      intent: "더 이상 쓰지 않는 팩스 번호를 연락처에서 폐기해 줘",
+      editContext: null,
+      artifacts: [{ artifactId: ARTIFACT_ID, content: SEED_CONTENT }],
+    });
+    if (turn.proposal) {
+      throw new Error(
+        "에이전트가 폐기 턴을 저작했다 — 결함이 풀렸다(agent ≥0.2.1?). 이 단언을 '에이전트가 저작한다'로 뒤집고 " +
+          "단언 2 를 손 저작 changeset 대신 에이전트 제안으로 되돌릴 것",
+      );
+    }
+    const errors: string = (turn.outcome?.retries ?? []).flatMap((r: any) => r.errors).join(" ");
+    if (!errors.includes(`"${RETIRED_FIELD}"`) || !errors.includes("does not declare")) {
+      throw new Error(`소진 이유가 고정한 결함이 아니다 — ${errors.slice(0, 300)}`);
+    }
+    ok(n, desc10);
+  } catch (err) {
+    fail(n, desc10, err);
+  }
 
   console.log(
     failures.length === 0

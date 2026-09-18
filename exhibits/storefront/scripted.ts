@@ -5,8 +5,7 @@
  * 이 턴은 UI 패치를 **둘** 낸다 — 같은 안내 문구를 두 화면에 함께 넣는다. 화면이
  * 하나뿐이면 저작할 수조차 없는 종류의 변경이다.
  *
- * 다른 전시물과 같은 경계를 지킨다: generator 단계는 스키마도 데이터도 직접 볼 수
- * 없으므로 그 지식은 planner 가 plan 산문에 옮겨 적은 것만 쓴다.
+ * 다른 전시물과 같은 경계를 지킨다: 스크립트는 plan 에 적힌 것만 쓴다.
  */
 
 import type { ModelProvider, ModelRequest } from "@vivariumjs/agent";

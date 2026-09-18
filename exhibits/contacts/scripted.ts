@@ -8,10 +8,10 @@
  * 요점이다: 같은 규칙이 이제 두 층에서 집행되고, 그중 하나만 게시본에 있다.
  * scenario.md §두 개의 문.
  *
- * inventory 의 scripted 와 같은 경계를 지킨다: generator 단계는 스키마도 데이터도
- * 직접 볼 수 없으므로, 그 지식은 **planner 가 plan 산문에 옮겨 적은 것만** 쓴다.
- * 시드를 안다는 이유로 generator 가 스키마를 "그냥 아는" 짓을 하면, GREEN 이 실제
- * 모델이 할 수 없는 일을 통과시킨 결과가 된다.
+ * inventory 의 scripted 와 같은 경계를 지킨다: 스크립트는 **plan 에 적힌 것만** 쓴다.
+ * 모델은 이제 라이브 스키마·데이터를 호스트로부터 받지만, 시드를 안다는 이유로 그
+ * 뷰에도 없는 것을 "그냥 아는" 짓을 하면 GREEN 이 실제 모델이 할 수 없는 일을
+ * 통과시킨 결과가 된다.
  */
 
 import type { ModelProvider, ModelRequest } from "@vivariumjs/agent";

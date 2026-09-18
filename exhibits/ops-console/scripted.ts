@@ -9,8 +9,7 @@
  * capability 는 이미 그 값을 돌려주고 있고 화면만 쓰지 않는다 — 카드 목록이
  * 아티팩트 소유이기 때문이다. 그래서 이 턴은 UI facet 하나만 움직인다.
  *
- * 다른 전시물과 같은 경계를 지킨다: generator 단계는 스키마도 데이터도 직접 볼 수
- * 없으므로, 그 지식은 **planner 가 plan 산문에 옮겨 적은 것만** 쓴다.
+ * 다른 전시물과 같은 경계를 지킨다: 스크립트는 **plan 에 적힌 것만** 쓴다.
  */
 
 import type { ModelProvider, ModelRequest } from "@vivariumjs/agent";

@@ -3,19 +3,16 @@
  *
  * **이 스크립트가 알아도 되는 것의 경계 (읽는 사람이 GREEN 을 오해하지 않도록)**
  *
- * 에이전트 파이프라인은 2단계다: planner 프롬프트는 intent + editContext +
- * **knowledge** 를 받고, generator 프롬프트는 intent + **planner 가 쓴 plan** +
- * **UI 아티팩트만** 받는다. 즉 schema/data 연산을 실제로 뱉는 단계는 스키마도
- * 데이터도 **직접 볼 수 없다** — 그 지식이 도달할 수 있는 유일한 경로는
- * "planner 가 knowledge 에서 읽어 plan 산문에 옮겨 적는 것"이다.
+ * 에이전트 파이프라인은 2단계다: planner 가 intent · editContext · knowledge 와
+ * **라이브 스키마·데이터**(호스트 공급, host/server.ts)를 읽고 plan 을 쓰며, generator 는
+ * plan 과 UI 아티팩트, **같은 스키마·데이터 뷰**를 받아 연산을 낸다. 예전에는 generator 가
+ * 스키마도 데이터도 볼 수 없어서 그 지식이 plan 산문을 거쳐서만 도달했다 — 이
+ * 스크립트의 plan 이 엔티티·필드·행 키를 전부 적어 두는 것은 그 시절의 형태다.
  *
- * 그래서 이 스크립트는 그 경로를 **그대로 흉내낸다**: planner 응답이 엔티티·
- * 필드·행 키를 plan 안에 명시하고, generator 응답은 그 plan 에 적힌 것만 쓴다.
- * 시드를 알고 있다는 이유로 generator 단계에서 스키마를 "그냥 아는" 짓을 하지
- * 않는다 — 그렇게 하면 실제 모델이 할 수 없는 일을 스모크가 통과시켜, GREEN 이
- * 3-facet 저작 가능성의 증거가 아니게 된다.
+ * 스크립트는 여전히 plan 에 적힌 것만 쓴다. 시드를 안다는 이유로 모델이 볼 수 없는
+ * 것을 "그냥 아는" 짓은 하지 않는다 — 그렇게 하면 GREEN 이 저작 가능성의 증거가 아니게 된다.
  *
- * 이 경로가 실모델에서도 성립하는지는 scripted 로는 알 수 없다 — 그 판정은
+ * 실모델에서 3-facet 저작이 성립하는지는 scripted 로는 알 수 없다 — 그 판정은
  * 실모델 run 의 몫이다(scenario.md §완주 기준).
  */
 
@@ -35,7 +32,7 @@ export const RESTOCK_DUE: Record<string, string> = {
 };
 
 /**
- * planner 가 knowledge(LOGICAL SCHEMA · DATA SHAPE)를 읽고 쓴 plan.
+ * planner 가 라이브 스키마·데이터(호스트 공급)를 읽고 쓴 plan.
  * generator 가 볼 수 있는 유일한 스키마/데이터 지식이 여기 실려 있다.
  */
 const PLAN = [

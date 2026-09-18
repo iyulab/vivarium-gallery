@@ -10,10 +10,13 @@
  * 동시 편집자/낡은 제안 시나리오이고, ⑬ 이 말하는 TOCTOU 창 그 자체다.
  * 호스트에 새 표면을 만들지 않는다.
  *
- * 단언 5·6 은 **거부가 일어나지 않는 것**을 판정한다 — 드리프트 게이트가
- * changeset 이 스스로 선언한 baseState 항목만 검사하고, 저작자(에이전트)는
- * `ui-artifact` 항목만 발행하므로, **스키마·데이터가 발밑에서 바뀌어도 아무도
- * 눈치채지 못한다.** 통과가 곧 결함인 단언이다.
+ * 단언 4~6 은 **스키마·데이터 발밑이 움직이면 게이트가 본다**를 판정한다. 드리프트
+ * 게이트는 changeset 이 스스로 선언한 baseState 항목만 검사한다. 예전에는
+ * 저작자(에이전트)가 `ui-artifact` 항목만 발행해서 데이터가 바뀌어도 아무도 눈치채지
+ * 못했고, 이 단언들은 그것을 "통과가 곧 결함"으로 고정하고 있었다. 이제 호스트가
+ * 스키마·데이터의 라이브 뷰와 그 지문을 에이전트에 공급하고(agent 0.2.0 ·
+ * `SchemaInput.base`/`DataInput.base`), stage 가 spec 0.3.0 의 `data` kind 를 받아들이므로
+ * (Vivarium.Stage 0.7.0) 세 단언이 뒤집혔다 — 삭제된 행을 겨누는 낡은 제안은 거부된다.
  *
  * 단언 7·8 은 **거부가 무엇으로 보이는가**를 판정한다. 거부가 크래시와 같은 코드로
  * 나오면 소비자는 제품이 동작한 것과 망가진 것을 구별할 수 없고, 그러면 "거부되는
@@ -81,7 +84,7 @@ function approve(changeset: any, fingerprint: string): any {
 }
 
 async function main(): Promise<void> {
-  await post("/stage/targets", {
+  const seeded = await post("/stage/targets", {
     target: TARGET,
     artifacts: exhibit.artifacts,
     schema: exhibit.schema,
@@ -160,17 +163,27 @@ async function main(): Promise<void> {
     fail(n, "드리프트 거부가 어긋난 ref·기대·실제 지문을 **구조로** 나른다 — 산문 파싱 불필요 (BD-01 해소)", err);
   }
 
-  // ── 4. 제안이 선언하는 base 는 UI 아티팩트뿐 ────────────────────────────
+  // ── 4. 3-facet 제안이 세 facet 의 base 를 전부 선언한다 ──────────────────
   n = 4;
+  const desc4 = "3-facet 제안이 schema·data·ui-artifact base 를 **전부** 선언한다 — 지문은 시드 시점의 라이브 그대로";
   try {
-    const kinds: string[] = proposal.changeset.provenance.baseState.map((e: any) => e.kind);
-    const unique = [...new Set(kinds)].sort();
-    if (JSON.stringify(unique) !== JSON.stringify(["ui-artifact"])) {
-      throw new Error(`baseState kinds changed — got ${JSON.stringify(unique)} (게이트 전제 재검토 필요)`);
+    const entries: any[] = proposal.changeset.provenance.baseState;
+    const kinds = [...new Set(entries.map((e) => e.kind))].sort();
+    if (JSON.stringify(kinds) !== JSON.stringify(["data", "schema", "ui-artifact"])) {
+      throw new Error(`baseState kinds — got ${JSON.stringify(kinds)}`);
     }
-    ok(n, "3-facet 제안조차 baseState 에 ui-artifact 만 선언 — 스키마·데이터 base 는 미선언");
+    // 선언이 있다는 것만으로는 부족하다 — 호스트가 공급한 지문이 라이브와 같아야 게이트가 뜻을 갖는다.
+    for (const e of entries) {
+      if (e.fingerprint !== seeded.fingerprints[e.ref]) {
+        throw new Error(`${e.kind}/${e.ref} 지문이 라이브와 다르다: ${e.fingerprint} ≠ ${seeded.fingerprints[e.ref]}`);
+      }
+    }
+    if (proposal.changeset.specVersion !== "0.3.0") {
+      throw new Error(`data base 를 선언한 문서는 spec 0.3.0 이어야 한다 — got ${proposal.changeset.specVersion}`);
+    }
+    ok(n, desc4);
   } catch (err) {
-    fail(n, "3-facet 제안조차 baseState 에 ui-artifact 만 선언 — 스키마·데이터 base 는 미선언", err);
+    fail(n, desc4, err);
   }
 
   // 정리: 적용된 세션을 되돌려 라이브를 시드로 복귀시킨다.
@@ -178,14 +191,15 @@ async function main(): Promise<void> {
 
   // ── 5. 데이터 전용 변경이 라이브를 움직인다 (행 삭제) ────────────────────
   n = 5;
+  const desc5 = `데이터 전용 changeset(data base 선언 · spec 0.3.0) 적용 → 행 ${DOOMED_SKU} 제거`;
   try {
-    // 저작자가 데이터 base 를 선언하고 싶어도 **어휘에 없다** — 스펙 §4 의
-    // baseState kind 는 schema·ui-artifact·changeset 3종이고 data 가 없다.
-    // 그래서 이 changeset 의 baseState 는 비어 있을 수밖에 없다.
+    // spec 0.3.0 이 `data` kind 를 더했다 — 데이터만 바꾸는 저작자도 자기가 선 자리를 선언한다.
+    const live0 = await world();
     let draft = createChangeset({
       intent: "재고 정리 — 단종 품목 행 삭제",
       producedBy: "gallery/smoke-refusal (hand-authored, data facet only)",
       createdAt: new Date().toISOString(),
+      baseState: [{ kind: "data", ref: "data", fingerprint: live0.fingerprints.data }],
     });
     draft = addDataPatch(draft, {
       id: "retire-discontinued",
@@ -206,52 +220,44 @@ async function main(): Promise<void> {
     if (live.data.Item.some((r: any) => r.sku === DOOMED_SKU)) {
       throw new Error(`row ${DOOMED_SKU} still present after the delete`);
     }
-    ok(n, `데이터 전용 changeset 적용 → 행 ${DOOMED_SKU} 제거 (baseState 는 비어 있다 — data kind 부재)`);
+    ok(n, desc5);
   } catch (err) {
-    fail(n, `데이터 전용 changeset 적용 → 행 ${DOOMED_SKU} 제거 (baseState 는 비어 있다 — data kind 부재)`, err);
+    fail(n, desc5, err);
   }
 
-  // ── 6. 그런데 낡은 제안이 **거부되지 않는다** — 통과가 곧 결함 ──────────
+  // ── 6. 삭제된 행을 겨누는 낡은 제안은 **거부된다** ─────────────────────
   n = 6;
+  const desc6 =
+    "삭제된 행을 겨누는 낡은 제안 → 409 DriftGate — 어긋난 것은 **data 하나**로 지목되고 라이브는 그대로";
   try {
-    // 제안은 3개 행이 있던 세계에서 저작됐고 그중 하나를 갱신하려 한다.
-    // 그 행은 이제 없다. 드리프트 게이트는 제안이 선언한 것(UI 아티팩트)만
-    // 보므로 아무 일도 일어나지 않는다.
+    // 제안은 3개 행이 있던 세계에서 저작됐고 그중 하나를 갱신하려 한다. 그 행은
+    // 이제 없다. 스키마·UI 는 롤백으로 시드 그대로라 어긋난 것은 데이터뿐이다.
     const targeted: string[] = proposal.changeset.patches.data.flatMap((p: any) =>
       p.operations.map((o: any) => String(o.where?.equals)),
     );
     if (!targeted.includes(DOOMED_SKU)) {
       throw new Error(`제안이 ${DOOMED_SKU} 를 대상으로 하지 않는다 — 이 단언의 전제가 깨졌다`);
     }
+    const before = await world();
     const propose = await post(`/stage/targets/${TARGET}/changesets`, approved);
     const { status, json } = await raw(`/stage/sessions/${propose.sessionId}/apply`, {
       actor: "editor-a",
       evidence: { observed: "stale proposal re-applied" },
     });
-    if (status !== 200) {
-      throw new Error(
-        `드리프트 게이트가 데이터 변화를 잡았다 (${status}: ${JSON.stringify(json)}) — 좋은 소식이지만 이 단언의 전제가 바뀌었으니 게이트를 갱신할 것`,
-      );
+    if (status !== 409 || json.reason !== "DriftGate") {
+      throw new Error(`expected 409 DriftGate, got ${status}: ${JSON.stringify(json)}`);
     }
-    const live = await world();
-    const rows: any[] = live.data.Item;
-    const backfilled = rows.filter((r) => r.restockDue !== undefined).length;
-    if (rows.length !== 2 || backfilled !== 2) {
-      throw new Error(`예상: 2행·2건 백필, 실제: ${rows.length}행·${backfilled}건 — ${JSON.stringify(rows)}`);
+    const drifted: any[] = json.details?.drifted ?? [];
+    if (drifted.length !== 1 || drifted[0].kind !== "data" || drifted[0].ref !== "data") {
+      throw new Error(`drifted 는 data 하나여야 한다: ${JSON.stringify(drifted)}`);
     }
-    if (!live.schema.entities.Item.fields.restockDue) {
-      throw new Error("스키마에 필드가 선언되지 않았다 — 전제 붕괴");
+    const after = await world();
+    if (JSON.stringify(after.data) !== JSON.stringify(before.data) || after.schema.entities.Item.fields.restockDue) {
+      throw new Error("거부됐는데 라이브가 움직였다");
     }
-    ok(
-      n,
-      "삭제된 행을 대상으로 하는 낡은 제안이 **거부 없이 적용된다** — 드리프트 게이트는 선언된 facet 만 본다 (통과=결함)",
-    );
+    ok(n, desc6);
   } catch (err) {
-    fail(
-      n,
-      "삭제된 행을 대상으로 하는 낡은 제안이 **거부 없이 적용된다** — 드리프트 게이트는 선언된 facet 만 본다 (통과=결함)",
-      err,
-    );
+    fail(n, desc6, err);
   }
 
   // ── 7. 어댑터 층 거부는 크래시와 다른 코드로 나온다 ──────────────────────
