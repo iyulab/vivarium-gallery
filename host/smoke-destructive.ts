@@ -13,12 +13,13 @@
  *   ② 거부가 정답 — **거부되고 이유를 말해야** 성공. 거부가 크래시와 같은 코드로
  *      나오면 이 판정 자체가 성립하지 않는다.
  *   ③ 미선언 영역 — 통과하되 **기록에 남아야** 성공(`smoke-refusal` 문법:
- *      *"거부가 없는 자리"*). 통과가 곧 결함인 것과, 통과가 **선언되지 않았을 뿐**인
- *      것을 갈라 적는다 — 전자는 의존이 고치면 뒤집히고 후자는 뒤집히지 않는다.
+ *      *"거부가 없는 자리"*). 통과가 **선언되지 않았을 뿐**인 자리이며, 의존이
+ *      바뀌어도 뒤집히지 않는다.
  *
- * **판정 대상은 소비 중인 게시본**이다. 어떤 단언이 오늘 초록인 이유가 "고쳐져서"가
- * 아니라 "아직 안 고쳐져서"인 자리가 있고, 그런 자리는 그 사실을 실패 메시지에
- * 적어 둔다 — 의존이 범프되면 그 단언이 빨개지고, 그때 뒤집는 것이 정답이다.
+ * **판정 대상은 소비 중인 게시본**이다. 6·7 은 Vivarium.Stage 0.6.0 이전에는
+ * "아직 안 고쳐져서" 초록인 자리(500 크래시 · 거짓 `Applied`)를 고정하고 있었고,
+ * 0.6.0 범프로 빨개진 뒤 ② 문법으로 뒤집혔다. 같은 방식으로 고정해 둔 자리가
+ * 생기면 실패 메시지에 뒤집는 방법을 적는다.
  *
  * Prerequisite: stage-host (8891) + host/server.ts (8890, **--exhibit contacts**,
  * MODEL_PROVIDER 미설정 — 결정성은 scripted provider 에 의존).
@@ -293,11 +294,12 @@ async function main(): Promise<void> {
     fail(n, "② 부재 엔티티를 지목한 제거 → 422 AdapterRefused, 이유가 표적을 이름으로 부른다", err);
   }
 
-  // ── 6. ② 인데 거부가 아니라 **크래시**로 나온다 — 게이트가 결함을 고정한다 ──
+  // ── 6. ② 부재 **필드** 를 지목한 retype 도 거부되고 필드를 이름으로 부른다 ──
   n = 6;
   try {
     await seed();
-    const { status } = await raw(
+    const before = JSON.stringify((await world()).schema);
+    const { status, json } = await raw(
       `/stage/targets/${TARGET}/changesets`,
       handAuthored("실재하지 않는 필드의 타입을 바꾼다", {
         op: "field.retype",
@@ -307,27 +309,30 @@ async function main(): Promise<void> {
         explanation: "엔티티는 실재하고 필드는 실재하지 않는다.",
       }),
     );
-    // 계약의 §Operation input 은 이 실패 모드를 **명시적으로 금지**한다 —
+    // 계약의 §Operation input 은 이 자리의 null 참조 결함을 **명시적으로 금지**한다 —
     // "부재 멤버를 역참조하면 null 참조 결함이 나고, 결함은 이유가 아니다."
-    // 그런데 소비 중인 게시본은 정확히 그것을 한다. 즉 이 단언은 **결함이 있어서
-    // 초록**이고, 의존이 그것을 고치면 빨개진다 — 그때 뒤집는 것이 정답이다.
-    if (status !== 500) {
-      throw new Error(
-        `부재 필드 retype 이 ${status} 로 나온다 — 의존이 이 구멍을 닫았다는 뜻이므로 ` +
-          `이 단언을 **뒤집을 것**: 기대를 422 AdapterRefused 로 바꾸고 메시지가 필드를 이름으로 부르는지 판정한다`,
-      );
+    // Vivarium.Stage 0.6.0 이전 게시본은 정확히 그것(500)을 했고, 이 단언은 그때
+    // 결함을 고정하고 있었다. 이제는 엔티티 층(5)과 같은 문법의 거부여야 한다.
+    if (status !== 422 || json.reason !== "AdapterRefused") {
+      throw new Error(`expected 422 AdapterRefused, got ${status}: ${JSON.stringify(json)}`);
     }
-    ok(n, "② **거부가 정답인데 구조적 크래시(500)** 로 나온다 — 계약이 금지한 실패 모드 (게이트가 결함을 고정)");
+    if (!String(json.error ?? "").includes("noSuchFieldHere")) {
+      throw new Error(`거부가 필드를 이름으로 부르지 않는다: ${JSON.stringify(json)}`);
+    }
+    if (JSON.stringify((await world()).schema) !== before) {
+      throw new Error("거부됐는데 라이브 스키마가 바뀌었다");
+    }
+    ok(n, "② 부재 **필드** 를 지목한 retype → 422 AdapterRefused, 이유가 필드를 이름으로 부른다 (크래시가 아니다)");
   } catch (err) {
-    fail(n, "② **거부가 정답인데 구조적 크래시(500)** 로 나온다 — 계약이 금지한 실패 모드 (게이트가 결함을 고정)", err);
+    fail(n, "② 부재 **필드** 를 지목한 retype → 422 AdapterRefused, 이유가 필드를 이름으로 부른다 (크래시가 아니다)", err);
   }
 
-  // ── 7. ③ 통과가 곧 결함 — 없는 엔티티를 지우는 것이 조용히 성공한다 ──────
+  // ── 7. ② 없는 엔티티를 지우는 것도 거부다 — 조용한 성공이 아니다 ──────────
   n = 7;
   try {
     await seed();
     const before = JSON.stringify((await world()).schema);
-    const propose = await raw(
+    const { status, json } = await raw(
       `/stage/targets/${TARGET}/changesets`,
       handAuthored("실재하지 않는 엔티티를 지운다", {
         op: "entity.remove",
@@ -335,23 +340,20 @@ async function main(): Promise<void> {
         explanation: "제거는 대상이 없어도 결과가 같아 보인다 — 그래서 조용한 성공이 그럴듯하다.",
       }),
     );
-    if (propose.status !== 200) {
-      throw new Error(
-        `부재 엔티티 제거가 ${propose.status} 로 거부됐다 — 의존이 이 구멍을 닫았다는 뜻이므로 ` +
-          `이 단언을 **뒤집을 것**: 기대를 422 AdapterRefused 로 바꾼다`,
-      );
+    // 0.6.0 이전에는 이것이 아무 일 없이 `Applied` 로 원장에 남았다(통과가 곧 결함).
+    // 승인된 문서가 "이것을 지웠다"고 말하는데 지운 것이 없는 기록은 거짓 이력이다.
+    if (status !== 422 || json.reason !== "AdapterRefused") {
+      throw new Error(`expected 422 AdapterRefused, got ${status}: ${JSON.stringify(json)}`);
     }
-    const applied = await post(`/stage/sessions/${propose.json.sessionId}/apply`, {
-      actor: "directory-steward",
-      evidence: { observed: "reviewed" },
-    });
-    if (applied.state !== "Applied") throw new Error(`apply 상태가 다르다: ${JSON.stringify(applied)}`);
+    if (!String(json.error ?? "").includes(ABSENT_ENTITY)) {
+      throw new Error(`거부가 표적을 이름으로 부르지 않는다: ${JSON.stringify(json)}`);
+    }
     if (JSON.stringify((await world()).schema) !== before) {
-      throw new Error("스키마가 바뀌었다 — 이 단언의 전제(아무 일도 일어나지 않는다)가 깨졌다");
+      throw new Error("거부됐는데 라이브 스키마가 바뀌었다");
     }
-    ok(n, "③ 부재 엔티티 제거가 **아무 일도 없이 `Applied` 로 원장에 남는다** — 통과가 곧 결함");
+    ok(n, "② 부재 엔티티 **제거** → 422 AdapterRefused — 원장에 거짓 `Applied` 가 남지 않는다");
   } catch (err) {
-    fail(n, "③ 부재 엔티티 제거가 **아무 일도 없이 `Applied` 로 원장에 남는다** — 통과가 곧 결함", err);
+    fail(n, "② 부재 엔티티 **제거** → 422 AdapterRefused — 원장에 거짓 `Applied` 가 남지 않는다", err);
   }
 
   // ── 8. ③ 미선언 영역 — 기존 데이터를 위반하는 제약이 착지한다 ────────────

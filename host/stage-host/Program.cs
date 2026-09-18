@@ -25,8 +25,14 @@ var sessions = new ConcurrentDictionary<string, ChangeSession>();
 static JsonObject ArtifactsOf(InMemoryBackendAdapter adapter, string stateRef) =>
     (JsonObject)((JsonObject)JsonNode.Parse(adapter.WorldCanonical(stateRef))!)["artifacts"]!.DeepClone();
 
+// `details` is what the refusing gate observed (the drifted refs with expected and
+// actual fingerprints, the per-error validation paths, …) — forwarded as-is so a
+// client can act on the difference without parsing `error`. Absent where the
+// library deliberately carries none.
 static IResult Refused(StageRefusedException e) =>
-    Results.Json(new { error = e.Message, reason = e.Reason.ToString() }, statusCode: 409);
+    e.Details is null
+        ? Results.Json(new { error = e.Message, reason = e.Reason.ToString() }, statusCode: 409)
+        : Results.Json(new { error = e.Message, reason = e.Reason.ToString(), details = e.Details }, statusCode: 409);
 
 // An adapter that refuses is the product working; an adapter that faults is a
 // bug. Both leave the library as the same exception type, so mapping on the

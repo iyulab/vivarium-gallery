@@ -20,9 +20,9 @@
  * 것이 성공인 턴"을 게이트로 쓸 수 없다. 8 은 대조군이다 — 반대편이 갈려 있지
  * 않으면 7 은 구별 가능성을 증명하지 않는다.
  *
- * 단언 9 는 5·6 과 같은 성격이다(**통과가 곧 결함**) — 7 이 초록이라고 해서 부재
- * 표적이 전부 거부된다는 뜻이 아님을 게이트가 직접 말한다. 초록의 **폭**을 초록의
- * **의미**로 읽는 것이 이 게이트가 막아야 할 마지막 오독이다.
+ * 단언 9 는 7 의 거부가 **필드 층까지** 닿는지 본다 — Vivarium.Stage 0.6.0 이전에는
+ * 닿지 않았고(부재 필드 개명이 조용히 적용됐다) 게이트가 그것을 고정하고 있었다.
+ * 단언 3 도 같은 범프로 뒤집혔다 — 거부가 어긋난 사실을 구조로 나른다.
  *
  * Prerequisite: stage-host (8891) + host/server.ts (8890, **--exhibit inventory**,
  * MODEL_PROVIDER 미설정).
@@ -138,25 +138,26 @@ async function main(): Promise<void> {
     fail(n, "같은 base 의 두 세션 — 하나를 적용하면 다른 하나는 409 DriftGate (동시 편집자)", err);
   }
 
-  // ── 3. 거부가 소비자에게 무엇을 주는가 — 구조 필드는 reason 하나뿐 ──────
+  // ── 3. 거부가 소비자에게 무엇을 주는가 — 어긋난 ref·기대·실제가 구조로 온다 ──
   n = 3;
   try {
     if (!driftRefusal) throw new Error("no drift refusal captured (단언 2 실패)");
-    const structural = Object.keys(driftRefusal).filter((k) => k !== "error");
-    if (JSON.stringify(structural) !== JSON.stringify(["reason"])) {
-      throw new Error(`refusal payload changed — structural keys: ${JSON.stringify(structural)}`);
+    // Vivarium.Stage 0.6.0 이전에는 구조 필드가 `reason` 하나뿐이었고 어긋난 사실은
+    // 산문 메시지 안에만 있었다(BD-01). 이제 호스트가 메시지를 파싱하지 않고
+    // "무엇이 어긋났는지"를 보여 줄 수 있어야 한다.
+    const details = driftRefusal.details;
+    if (!details || details.scope !== "base-state" || !Array.isArray(details.drifted)) {
+      throw new Error(`drift refusal carries no structured base-state details: ${JSON.stringify(driftRefusal)}`);
     }
-    // 어긋난 ref·기대값·실제값은 **산문 메시지 안에만** 있다. 호스트가 "무엇이
-    // 어긋났는지"를 보여주려면 메시지를 파싱해야 한다 — BD-01 이 지적한 그 상태.
-    const message: string = driftRefusal.error ?? "";
-    const namesTheRef = message.includes(ARTIFACT_ID);
-    const namesFingerprints = (message.match(/sha256:/g) ?? []).length >= 2;
-    if (!namesTheRef || !namesFingerprints) {
-      throw new Error(`message does not even carry the facts in prose: ${message}`);
+    const entry = details.drifted.find((d: any) => d.ref === ARTIFACT_ID);
+    if (!entry) throw new Error(`drifted 가 어긋난 ref 를 지목하지 않는다: ${JSON.stringify(details.drifted)}`);
+    const isFp = (v: unknown) => typeof v === "string" && v.startsWith("sha256:");
+    if (!isFp(entry.expected) || !isFp(entry.actual) || entry.expected === entry.actual) {
+      throw new Error(`기대·실제 지문이 구별되지 않는다: ${JSON.stringify(entry)}`);
     }
-    ok(n, "거부 페이로드의 구조 필드는 reason 뿐 — 어긋난 ref·기대·실제는 산문 안에만 (BD-01)");
+    ok(n, "드리프트 거부가 어긋난 ref·기대·실제 지문을 **구조로** 나른다 — 산문 파싱 불필요 (BD-01 해소)");
   } catch (err) {
-    fail(n, "거부 페이로드의 구조 필드는 reason 뿐 — 어긋난 ref·기대·실제는 산문 안에만 (BD-01)", err);
+    fail(n, "드리프트 거부가 어긋난 ref·기대·실제 지문을 **구조로** 나른다 — 산문 파싱 불필요 (BD-01 해소)", err);
   }
 
   // ── 4. 제안이 선언하는 base 는 UI 아티팩트뿐 ────────────────────────────
@@ -321,14 +322,13 @@ async function main(): Promise<void> {
     fail(n, "시드된 적 없는 타깃 → 500 — 거부(422)와 결함(500)이 경계에서 갈린다 (대조군)", err);
   }
 
-  // ── 9. 부재 표적 거부는 **엔티티 층에만** 있다 — 통과가 곧 결함 ───────────
+  // ── 9. 부재 표적 거부는 **필드 층에도** 있다 ───────────────────────────────
   n = 9;
   try {
-    // 단언 7 은 부재 **엔티티** 로 거부를 일으킨다. 같은 문장이 부재 **필드** 에도
-    // 성립한다고 읽으면 틀린다: 지금 소비되는 게시본에서 없는 필드를 개명하는 연산은
-    // 거부되지 않고 **적용된다**. 그 결과가 새 이름 아래의 빈 선언이고, 그것은 뒤의
-    // 어떤 읽기도 진짜 필드와 구별하지 못한다 — 승인된 문서가 말한 것과 다른 세계다.
-    const PHANTOM = "phantomRenamed";
+    // 단언 7 은 부재 **엔티티** 로 거부를 일으킨다. Vivarium.Stage 0.6.0 이전에는
+    // 같은 문장이 부재 **필드** 에는 성립하지 않았다 — 없는 필드를 개명하면 적용되고
+    // 새 이름 아래 빈 선언이 남았다(통과가 곧 결함). 이제는 같은 거부여야 한다.
+    const before = JSON.stringify((await world()).schema);
     const ghost: any = finalize(
       addSchemaOp(
         createChangeset({
@@ -340,45 +340,25 @@ async function main(): Promise<void> {
           op: "field.rename",
           entity: "Item",
           field: "noSuchFieldHere",
-          newName: PHANTOM,
+          newName: "phantomRenamed",
           explanation: "엔티티는 실재하고 필드는 실재하지 않는다.",
         },
       ),
     );
     const approvedGhost = approve(ghost, ghost.fingerprint);
-    const { status: proposeStatus, json: proposeJson } = await raw(
-      `/stage/targets/${TARGET}/changesets`,
-      approvedGhost,
-    );
-    if (proposeStatus !== 200) {
-      throw new Error(
-        `부재 필드 표적이 ${proposeStatus} 로 거부됐다 (${JSON.stringify(proposeJson)}) — ` +
-          `게시본이 그 거부를 나르기 시작했다는 뜻이므로 이 단언을 **뒤집을 것**: ` +
-          `기대를 422 AdapterRefused 로 바꾸고 아래 라이브 판독을 지운다`,
-      );
+    const { status, json } = await raw(`/stage/targets/${TARGET}/changesets`, approvedGhost);
+    if (status !== 422 || json.reason !== "AdapterRefused") {
+      throw new Error(`expected 422 AdapterRefused, got ${status}: ${JSON.stringify(json)}`);
     }
-    const applied = await post(`/stage/sessions/${proposeJson.sessionId}/apply`, {
-      actor: "schema-steward",
-      evidence: { observed: "reviewed" },
-    });
-    if (applied.state !== "Applied") throw new Error(`apply 실패: ${JSON.stringify(applied)}`);
-    const fields = (await world()).schema.entities.Item.fields;
-    if (!(PHANTOM in fields) || fields[PHANTOM] !== null) {
-      throw new Error(
-        `라이브가 예상과 다르다 — ${PHANTOM} 이 빈 선언으로 들어가 있어야 한다: ${JSON.stringify(fields)}`,
-      );
+    if (!String(json.error ?? "").includes("noSuchFieldHere")) {
+      throw new Error(`거부가 필드를 이름으로 부르지 않는다: ${JSON.stringify(json)}`);
     }
-    await post(`/stage/sessions/${proposeJson.sessionId}/rollback`, { actor: "smoke-refusal" });
-    ok(
-      n,
-      "부재 **필드** 를 지목한 개명은 **거부 없이 적용되고 빈 선언을 남긴다** — 부재 표적 거부는 엔티티 층에만 있다 (통과=결함)",
-    );
+    if (JSON.stringify((await world()).schema) !== before) {
+      throw new Error("거부됐는데 라이브 스키마가 바뀌었다");
+    }
+    ok(n, "부재 **필드** 를 지목한 개명 → 422 AdapterRefused — 부재 표적 거부가 필드 층까지 닿는다");
   } catch (err) {
-    fail(
-      n,
-      "부재 **필드** 를 지목한 개명은 **거부 없이 적용되고 빈 선언을 남긴다** — 부재 표적 거부는 엔티티 층에만 있다 (통과=결함)",
-      err,
-    );
+    fail(n, "부재 **필드** 를 지목한 개명 → 422 AdapterRefused — 부재 표적 거부가 필드 층까지 닿는다", err);
   }
 
   console.log(
