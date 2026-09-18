@@ -146,6 +146,17 @@ export async function checkRender(
   };
   process.on("unhandledRejection", onRejection);
 
+  // 거부의 짝: **동기로** 던지는 리스너·타이머. jsdom 은 그 예외를 window 의 `error`
+  // 이벤트로 보고하고, 아무도 취소하지 않으면 가상 콘솔에 찍고 끝낸다 — 기록은
+  // `ok` 로 남는다. 둘 다 잡아야 이 대역이 runtime 의 fault 어휘(`error` ·
+  // `unhandledrejection`, SandboxHandle.onFault)와 같은 것을 본다.
+  const uncaught: string[] = [];
+  dom.window.addEventListener("error", (event) => {
+    event.preventDefault();
+    const error = (event as unknown as { error?: unknown }).error;
+    uncaught.push(error instanceof Error ? error.message : String(error ?? (event as { message?: string }).message));
+  });
+
   let childCount = 0;
   let textLength = 0;
 
@@ -166,6 +177,7 @@ export async function checkRender(
     } catch (err) {
       errors.push(`mount threw: ${err instanceof Error ? err.message : String(err)}`);
     }
+    for (const message of uncaught) errors.push(`uncaught error during mount: ${message}`);
 
     childCount = root.children.length;
     textLength = (root.textContent ?? "").trim().length;
@@ -213,6 +225,7 @@ export async function checkRender(
         const stepErrors: string[] = [];
         const invokedBefore = invoked.length;
         const rejectionsBefore = rejections.length;
+        const uncaughtBefore = uncaught.length;
 
         const target = root.querySelector(step.selector);
         if (!target) {
@@ -261,6 +274,9 @@ export async function checkRender(
         }
         for (const reason of rejections.slice(rejectionsBefore)) {
           stepErrors.push(`unhandled rejection during ${eventName} on ${step.selector}: ${reason}`);
+        }
+        for (const message of uncaught.slice(uncaughtBefore)) {
+          stepErrors.push(`uncaught error during ${eventName} on ${step.selector}: ${message}`);
         }
 
         interactions.push({

@@ -590,13 +590,19 @@ async function main(): Promise<void> {
 
     const listenerTypo = FORM_SEED.replace('form.addEventListener("submit"', 'form.addEventListener("submitt"');
     const capabilityTypo = FORM_SEED.replace('api.invoke("survey.submit"', 'api.invoke("survey.submitt"');
-    if (listenerTypo === FORM_SEED || capabilityTypo === FORM_SEED) {
+    // 멀쩡한 리스너 옆에 **동기로 던지는** 리스너 하나 — 제출은 여전히 일어나므로
+    // 기대 invoke 로는 갈리지 않고, 예외를 잡아야만 갈린다.
+    const throwingListener = FORM_SEED.replace(
+      'form.addEventListener("submit"',
+      'form.addEventListener("submit", () => { throw new Error("listener fault"); });\n  form.addEventListener("submit"',
+    );
+    if (listenerTypo === FORM_SEED || capabilityTypo === FORM_SEED || throwingListener === FORM_SEED) {
       throw new Error("fixture derivation failed — the seed no longer contains the substituted text");
     }
 
     // ① 마운트 시점에는 셋이 구별되지 않는다 — 이것이 갭 그 자체다.
     const mountOnly = await Promise.all(
-      [FORM_SEED, listenerTypo, capabilityTypo].map((src) => checkRender(src, formExhibit.capabilities)),
+      [FORM_SEED, listenerTypo, capabilityTypo, throwingListener].map((src) => checkRender(src, formExhibit.capabilities)),
     );
     const signature = (r: (typeof mountOnly)[number]): string =>
       `${r.ok}|${r.childCount}|${r.textLength}|${r.invoked.join(",")}|${r.errors.join(",")}`;
@@ -629,7 +635,13 @@ async function main(): Promise<void> {
       throw new Error(`wrong capability must surface its rejection — got ${JSON.stringify(wrongCapability)}`);
     }
 
-    ok(n, "render-check 상호작용 단계 — 마운트에서 동일하던 셋이 이벤트 하나로 갈린다 (죽은 리스너·잘못된 capability)");
+    const throwing = await checkRender(throwingListener, formExhibit.capabilities, { interactions });
+    if (throwing.ok || !throwing.errors.some((e) => e.includes("uncaught error") && e.includes("listener fault"))) {
+      // jsdom 은 리스너 예외를 가상 콘솔에만 찍는다 — 잡지 않으면 기록은 ok 다.
+      throw new Error(`throwing listener must surface its error — got ${JSON.stringify(throwing)}`);
+    }
+
+    ok(n, "render-check 상호작용 단계 — 마운트에서 동일하던 넷이 이벤트 하나로 갈린다 (죽은 리스너·잘못된 capability·던지는 리스너)");
   } catch (err) {
     fail(n, "render-check 상호작용 단계 — 마운트 이후 판정", err);
   }
