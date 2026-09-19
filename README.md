@@ -177,6 +177,11 @@ node host/tools/verify-consumption.ts
   넘겨 아무도 알아채지 못했다. 아카이브 시점은 아직 되돌릴 수 있는 자리라
   거기서 막는다. 이미 굳은 run 은 막지 않고 **적는다** — 인덱스가 그 카드에
   "스크린샷 없음"을 표기하고, 생성기가 실행 시 목록을 함께 출력한다.
+- `host/tools/measure-edit-context.ts` — 전시물마다 편집 컨텍스트의 크기를
+  구성요소별(source · screen.elementIds · selection · untrusted)로 잰다. 판정이
+  아니라 측정이다(항상 exit 0). 작은 화면은 소스가 대부분이지만, 행이 많은
+  화면에서는 요소 id 목록이 소스를 넘는다 — 편집 대상은 그대로인데 컨텍스트가
+  데이터 행 수에 비례해 커지는 자리다.
 
 ## 전시물 목록
 
