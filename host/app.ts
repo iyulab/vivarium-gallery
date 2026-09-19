@@ -26,7 +26,7 @@
  *   7. every stage transition refreshes the ledger list
  *   8. all chat turns after the first go through /agent/refine (lineage)
  */
-import { mountSandbox, CapabilityRegistry } from "@vivariumjs/runtime";
+import { mountSandbox, CapabilityRegistry, RpcError, STALE_ELEMENT_REFERENCE } from "@vivariumjs/runtime";
 import type { ElementDescriptor, EditContext } from "@vivariumjs/runtime";
 import type { ExhibitDefinition } from "./exhibit-schema.ts";
 import { renderChangesetReview } from "./review.ts";
@@ -173,7 +173,12 @@ let target = "";
 let primaryArtifactId = "";
 let liveArtifacts: Record<string, string> = {};
 let artifactIds: string[] = [];
-let selectedIds: string[] = [];
+/**
+ * 사용자가 가리킨 요소. **참조(`ref`)** 로 쥔다 — id 는 주소라서 화면 구조가 바뀌면 같은
+ * id 가 다른 요소를 가리킬 수 있다. 참조는 그 요소만을 뜻하고, 요소가 사라지면 runtime 이
+ * 거부한다(`STALE_ELEMENT_REFERENCE`). id 는 표시용으로만 함께 든다.
+ */
+let selected: ElementDescriptor[] = [];
 /**
  * 선택이 일어난 화면. 편집 맥락은 **그 화면의 샌드박스**에서만 만들 수 있으므로,
  * 선택은 요소 id 만으로는 부족하고 어느 화면의 것인지를 함께 들어야 한다.
@@ -283,11 +288,15 @@ async function readLiveWorld(): Promise<Record<string, string> | null> {
 }
 
 // ── canvases ─────────────────────────────────────────────────────────────
-/** 살아 있는 상태를 화면 **전부**에 그린다. */
+/**
+ * 살아 있는 상태를 화면 **전부**에 그린다. 그리면 모든 요소가 새것이 되므로 쥐고 있던
+ * 선택도 함께 끝난다 — 남겨 두면 사라진 요소를 선택된 것처럼 보여 준다.
+ */
 async function renderCanvases(): Promise<void> {
   for (const [id, sandbox] of canvases) {
     await sandbox.render(liveArtifacts[id] ?? "export default function mount(){}");
   }
+  clearSelection();
 }
 
 // ── selection ────────────────────────────────────────────────────────────
@@ -295,18 +304,20 @@ function updateSelectionInfo(): void {
   // 화면이 여럿이면 어느 화면의 선택인지가 정보의 절반이다.
   const where = artifactIds.length > 1 && selectedArtifactId ? `${selectedArtifactId} / ` : "";
   selectionEl.textContent =
-    selectedIds.length > 0 ? `선택됨: ${where}${selectedIds.join(", ")}` : "선택 없음";
-  clearSelectionBtn.hidden = selectedIds.length === 0;
+    selected.length > 0 ? `선택됨: ${where}${selected.map((e) => e.id).join(", ")}` : "선택 없음";
+  clearSelectionBtn.hidden = selected.length === 0;
+}
+
+function clearSelection(): void {
+  selected = [];
+  selectedArtifactId = "";
+  updateSelectionInfo();
 }
 
 // FRICTION-20260718-selection-cannot-be-cleared: once an element is clicked
 // there was no way back to "no selection". The runtime sends selection
 // events only (no visual state), so clearing the app's own list is the fix.
-clearSelectionBtn.addEventListener("click", () => {
-  selectedIds = [];
-  selectedArtifactId = "";
-  updateSelectionInfo();
-});
+clearSelectionBtn.addEventListener("click", clearSelection);
 
 // 되돌리기는 **요청해야 하는 일**이다 — 페이지를 여는 부작용이 아니라.
 reseedBtn.addEventListener("click", async () => {
@@ -322,9 +333,6 @@ reseedBtn.addEventListener("click", async () => {
     pendingProposal = null;
     appliedSessionId = null;
     setPendingUi(false);
-    selectedIds = [];
-    selectedArtifactId = "";
-    updateSelectionInfo();
     saySeedState("시드로 되돌렸습니다.", false);
     await refreshLedger();
     setStatus("준비 완료");
@@ -458,7 +466,7 @@ async function init(): Promise<void> {
     sandbox.onSelectionChanged((element: ElementDescriptor) => {
       // 선택은 한 화면 안의 일이다 — 다른 화면을 클릭하면 그 화면으로 옮겨 간다.
       selectedArtifactId = id;
-      selectedIds = [element.id];
+      selected = [element];
       updateSelectionInfo();
     });
   }
@@ -476,10 +484,21 @@ async function sendChat(): Promise<void> {
   sendBtn.disabled = true;
   try {
     setStatus("에이전트 요청 중…");
-    const editContext: EditContext | null =
-      selectedIds.length > 0 && canvases.has(selectedArtifactId)
-        ? await canvases.get(selectedArtifactId)!.createEditContext(selectedIds)
-        : null;
+    let editContext: EditContext | null = null;
+    if (selected.length > 0 && canvases.has(selectedArtifactId)) {
+      try {
+        editContext = await canvases.get(selectedArtifactId)!.createEditContext(selected.map((e) => e.ref));
+      } catch (err) {
+        // 가리킨 요소가 그 사이 화면에서 사라졌다(생성 코드가 지웠다). 선택 없이 보내면
+        // 에이전트는 "이것"이 무엇인지 모른 채 추측하게 된다 — 보내지 않고 다시 묻는다.
+        if (err instanceof RpcError && err.code === STALE_ELEMENT_REFERENCE) {
+          clearSelection();
+          setStatus("선택한 요소가 화면에서 사라졌습니다 — 다시 선택한 뒤 보내세요 (입력은 그대로 둡니다)", true);
+          return;
+        }
+        throw err;
+      }
+    }
 
     let turn: any;
     if (!hasSession) {
