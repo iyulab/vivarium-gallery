@@ -41,6 +41,10 @@ const GATES = [
   { name: "smoke-destructive", script: "host/smoke-destructive.ts", exhibit: "contacts" },
   { name: "smoke-scale", script: "host/smoke-scale.ts", exhibit: "ops-console" },
   { name: "smoke-compose", script: "host/smoke-compose.ts", exhibit: "storefront" },
+  // Needs a browser on the machine; it drives the installed one and downloads
+  // nothing. Last because a failure here is about the screen, and the host-level
+  // gates above tell you whether the screen even had a correct thing to show.
+  { name: "smoke-app", script: "host/smoke-app.ts", exhibit: "dashboard" },
 ] as const;
 
 const STAGE_HOST_PORT = 8891;

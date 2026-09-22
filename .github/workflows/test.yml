@@ -38,5 +38,10 @@ jobs:
       # as whichever error the gate happens to produce.
       #
       # Deterministic throughout: scripted providers, no API key, no network model.
+      #
+      # One of the gates (smoke-app) drives the app in a real browser, using whatever
+      # Chrome/Edge/Chromium the runner already has — ubuntu-latest ships Chrome, and
+      # playwright-core downloads nothing. If a future runner image drops it, this step
+      # fails loudly rather than skipping the only gate that looks at the screen.
       - name: Gates
         run: node host/tools/run-gates.ts

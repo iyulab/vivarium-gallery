@@ -71,7 +71,27 @@ app.MapPost("/targets", async (HttpRequest request) =>
 // and the schema didn't", which is exactly the claim a 3-facet exhibit makes.
 app.MapGet("/targets/{target}/artifacts", async (string target) =>
 {
-    var active = await adapter.ActiveStateAsync(target);
+    ActiveState active;
+    try
+    {
+        active = await adapter.ActiveStateAsync(target);
+    }
+    catch (InvalidOperationException e)
+    {
+        // A target this host has never been asked to seed is absent, not broken — and
+        // the app asks about one on every load, before it knows whether a previous
+        // session left state behind. Letting the adapter's throw reach Kestrel made that
+        // ordinary question arrive as a 500 with a stack trace, which is the shape
+        // cycle-158 ruled out for the refusal path: absence that looks like a crash
+        // cannot be acted on by the caller or judged by a gate.
+        //
+        // The adapter is right to throw — the conformance kit requires it to refuse an
+        // unknown target rather than invent a pointer. What is missing is a way to tell
+        // that refusal from a real fault without reading the message; this door is the
+        // one place that knows only one of the two can happen here, so the mapping lives
+        // here (adapter-api §Error taxonomy is unspecified in v0 — fourth observation).
+        return Results.Json(new { error = e.Message, reason = "UnknownTarget" }, statusCode: 404);
+    }
     var world = (JsonObject)JsonNode.Parse(adapter.WorldCanonical(active.StateRef))!;
     return Results.Json(new
     {
