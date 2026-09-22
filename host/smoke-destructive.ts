@@ -41,9 +41,9 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { addDataPatch, addSchemaOp, addUiPatch, createChangeset, finalize } from "@vivariumjs/changeset";
+import { addSchemaOp, createChangeset, finalize } from "@vivariumjs/changeset";
 import exhibit from "../exhibits/contacts/exhibit.ts";
-import { COLUMN_ANCHOR, COLUMN_WITH_FAX, RETIRED_FIELD } from "../exhibits/contacts/scripted.ts";
+import { COLUMN_WITH_FAX, RETIRED_FIELD } from "../exhibits/contacts/scripted.ts";
 import { checkRender, renderFor } from "./tools/render-check.ts";
 import { runRollbackGate } from "./tools/rollback-gate.ts";
 
@@ -56,18 +56,15 @@ const ENTITY = "Contact";
 const ABSENT_ENTITY = "NoSuchEntity";
 const TOTAL = 10;
 const FACET_KEYS = ["schema", "data", ARTIFACT_ID];
+const DESC_2 =
+  "① 에이전트가 저작한 폐기 changeset 이 스키마·데이터·UI 세 곳에서 **함께 지운다** — 승인 하나·flip 하나";
 /**
- * 단언 10 이 판정하는 것은 **설치된** agent 다. 샘플의 range(`^0.2.0`)는 0.2.1 을 덮고
- * lockfile 은 추적하지 않으므로, 0.2.1 이 게시되는 순간 CI 의 fresh install 이 그것을 받는다
- * — 그래서 기대를 버전으로 가른다(smoke.ts 의 `agentVersion` 과 같은 문법).
+ * 단언 10 이 판정하는 것은 **설치된** agent 다 — 버전을 이름에 실어, 실패가 어느 게시본의
+ * 것인지 로그만 보고 알 수 있게 한다.
  */
 const agentVersion: string = JSON.parse(
   readFileSync(new URL("../node_modules/@vivariumjs/agent/package.json", import.meta.url), "utf8"),
 ).version;
-const agentClearsRetired = ((): boolean => {
-  const [maj, min, pat] = agentVersion.split(".").map(Number);
-  return maj > 0 || min > 2 || (min === 2 && pat >= 1);
-})();
 
 let passCount = 0;
 const failures: string[] = [];
@@ -145,47 +142,6 @@ function handAuthored(intent: string, op: Record<string, unknown>): any {
   return approve(cs, cs.fingerprint);
 }
 
-/**
- * 손으로 저작한 3-facet 폐기 changeset — 에이전트 턴과 같은 모양(스키마 제거 · 행마다
- * 값 비우기 · 열 제거)이고, 세 facet 의 base 를 선언한다. 단언 10 이 고정한 결함이
- * 게시본에서 풀리기 전까지 ① 을 무대에 올리는 자리다.
- */
-function retireChangeset(fingerprints: Record<string, string>): any {
-  let draft = createChangeset({
-    intent: "더 이상 쓰지 않는 팩스 번호를 연락처에서 폐기한다",
-    producedBy: "gallery/smoke-destructive (hand-authored — published agent cannot author it, see 10)",
-    createdAt: new Date().toISOString(),
-    baseState: [
-      { kind: "schema", ref: "schema", fingerprint: fingerprints.schema },
-      { kind: "data", ref: "data", fingerprint: fingerprints.data },
-      { kind: "ui-artifact", ref: ARTIFACT_ID, fingerprint: fingerprints[ARTIFACT_ID] },
-    ],
-  });
-  draft = addSchemaOp(draft, {
-    op: "field.remove",
-    entity: ENTITY,
-    field: RETIRED_FIELD,
-    explanation: "팩스 번호를 스키마에서 폐기한다.",
-  });
-  draft = addDataPatch(draft, {
-    id: "clear-fax",
-    explanation: "폐기하는 필드의 값을 행마다 비운다.",
-    operations: (exhibit.data as any)[ENTITY].map((row: any) => ({
-      op: "update",
-      entity: ENTITY,
-      where: { field: "id", equals: row.id },
-      set: { [RETIRED_FIELD]: null },
-    })),
-  });
-  draft = addUiPatch(draft, {
-    artifactId: ARTIFACT_ID,
-    baseContent: SEED_CONTENT,
-    newContent: SEED_CONTENT.replace(COLUMN_WITH_FAX, COLUMN_ANCHOR),
-    explanation: "표에서 팩스 열을 뺀다.",
-  });
-  return finalize(draft);
-}
-
 async function main(): Promise<void> {
   let n = 1;
 
@@ -225,11 +181,21 @@ async function main(): Promise<void> {
     (exhibit.data as any)[ENTITY].map((r: any) => [r.id, r[RETIRED_FIELD]]),
   );
   try {
-    const changeset = retireChangeset(seededFingerprints);
-    proposal = { changeset, fingerprint: changeset.fingerprint };
+    // 폐기 턴은 **에이전트가 저작한다**. 0.2.0 이 이 턴을 저작하지 못하던 동안 이 자리는
+    // 손 저작 changeset 이 대신 섰는데(중앙 지침 §3 임시 우회), 0.2.1 이 그 한계를 해소해
+    // 회수했다 — 이제 이 게이트가 무대에 올리는 것은 게시본이 실제로 내는 문서다.
+    const turn = await post("/agent/session", {
+      intent: "더 이상 쓰지 않는 팩스 번호를 연락처에서 폐기해 줘",
+      editContext: null,
+      artifacts: [{ artifactId: ARTIFACT_ID, content: SEED_CONTENT }],
+    });
+    if (!turn.proposal) {
+      throw new Error(`agent ${agentVersion} 이 폐기 턴을 저작하지 못했다 — ${JSON.stringify(turn.outcome?.retries ?? turn.outcome)}`);
+    }
+    proposal = turn.proposal;
     const patches = proposal.changeset.patches;
-    if (patches.schema[0].op !== "field.remove") {
-      throw new Error(`스키마 연산이 field.remove 가 아니다 — ${patches.schema[0].op}`);
+    if (!patches.schema.some((op: any) => op.op === "field.remove" && op.field === RETIRED_FIELD)) {
+      throw new Error(`스키마 연산에 ${RETIRED_FIELD} 의 field.remove 가 없다 — ${JSON.stringify(patches.schema.map((o: any) => o.op))}`);
     }
     approvedChangeset = approve(proposal.changeset, proposal.fingerprint);
     const propose = await post(`/stage/targets/${TARGET}/changesets`, approvedChangeset);
@@ -251,9 +217,9 @@ async function main(): Promise<void> {
     if (live.artifacts[ARTIFACT_ID].includes(COLUMN_WITH_FAX)) {
       throw new Error("표에 열이 남아 있다");
     }
-    ok(n, "① 폐기 changeset 이 스키마·데이터·UI 세 곳에서 **함께 지운다** — 승인 하나·flip 하나 (손 저작 — 10 참조)");
+    ok(n, DESC_2);
   } catch (err) {
-    fail(n, "① 폐기 changeset 이 스키마·데이터·UI 세 곳에서 **함께 지운다** — 승인 하나·flip 하나 (손 저작 — 10 참조)", err);
+    fail(n, DESC_2, err);
   }
 
   // ── 3. ① 의 완주 기준 — 롤백이 **잃은 값**을 되돌린다 ────────────────────
@@ -501,9 +467,7 @@ async function main(): Promise<void> {
 
   // ── 10. 게시본 agent 는 폐기 턴을 저작하지 못한다 (고정 — 뒤집을 자리) ─────
   n = 10;
-  const desc10 = agentClearsRetired
-    ? `agent ${agentVersion} 은 '지우고 비우는' 폐기 턴을 저작한다 — 스키마 제거·행마다 비우기·열 제거 (0.2.0 결함 해소 확인)`
-    : `게시본 agent ${agentVersion} 은 '지우고 비우는' 폐기 턴을 저작하지 못한다 — 데이터 패치를 지워진 뒤의 스키마로 판정한다 (결함 고정: ≥0.2.1 에서 해소)`;
+  const desc10 = `agent ${agentVersion} 은 '지우고 비우는' 폐기 턴을 저작한다 — 스키마 제거·행마다 비우기·열 제거`;
   try {
     await seed();
     const turn = await post("/agent/session", {
@@ -511,24 +475,18 @@ async function main(): Promise<void> {
       editContext: null,
       artifacts: [{ artifactId: ARTIFACT_ID, content: SEED_CONTENT }],
     });
-    if (agentClearsRetired) {
-      if (!turn.proposal) throw new Error(`agent ${agentVersion} 이 폐기 턴을 저작하지 못했다 — ${JSON.stringify(turn.outcome)}`);
-      const patches = turn.proposal.changeset.patches;
-      const removes = patches.schema.some((op: any) => op.op === "field.remove" && op.field === RETIRED_FIELD);
-      const clears = patches.data.some((p: any) =>
-        p.operations.some((o: any) => o.op === "update" && o.set && o.set[RETIRED_FIELD] === null),
-      );
-      if (!removes || !clears || patches.ui.length < 1) {
-        throw new Error(`폐기 턴이 3-facet 이 아니다: ${JSON.stringify({ removes, clears, ui: patches.ui.length })}`);
-      }
-    } else {
-      if (turn.proposal) {
-        throw new Error(`agent ${agentVersion} 이 폐기 턴을 저작했다 — 버전 판정(agentClearsRetired)이 틀렸다`);
-      }
-      const errors: string = (turn.outcome?.retries ?? []).flatMap((r: any) => r.errors).join(" ");
-      if (!errors.includes(`"${RETIRED_FIELD}"`) || !errors.includes("does not declare")) {
-        throw new Error(`소진 이유가 고정한 결함이 아니다 — ${errors.slice(0, 300)}`);
-      }
+    if (!turn.proposal) {
+      throw new Error(`agent ${agentVersion} 이 폐기 턴을 저작하지 못했다 — ${JSON.stringify(turn.outcome)}`);
+    }
+    const patches = turn.proposal.changeset.patches;
+    const removes = patches.schema.some((op: any) => op.op === "field.remove" && op.field === RETIRED_FIELD);
+    // 지우는 필드를 **행마다 비우는** 쓰기 — 0.2.1 이 은퇴를 기억하게 되기 전까지
+    // 표적 검사가 이것을 "선언되지 않은 필드에 쓰기"로 보고 턴 전체를 떨어뜨렸다.
+    const clears = patches.data.some((p: any) =>
+      p.operations.some((o: any) => o.op === "update" && o.set && o.set[RETIRED_FIELD] === null),
+    );
+    if (!removes || !clears || patches.ui.length < 1) {
+      throw new Error(`폐기 턴이 3-facet 이 아니다: ${JSON.stringify({ removes, clears, ui: patches.ui.length })}`);
     }
     ok(n, desc10);
   } catch (err) {
