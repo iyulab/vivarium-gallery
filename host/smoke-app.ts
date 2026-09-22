@@ -22,6 +22,7 @@
  */
 
 import { click, open, sandboxText, shutdown, textOf, until } from "./tools/browser.ts";
+import exhibit from "../exhibits/dashboard/exhibit.ts";
 
 // The host serves the app under /host/, not at the root — the same URL its startup
 // line prints. A gate that guesses the root gets a 404 page and blames the app.
@@ -43,7 +44,52 @@ function fail(n: number, desc: string, err: unknown): void {
   console.log(`  ${message.replace(/\n/g, "\n  ")}`);
 }
 
+/**
+ * This gate shares its stage target with the other gates — `dashboard` is the
+ * exhibit's own name, not a per-gate one — and it runs last, so it used to open
+ * the app on whatever the run before it had left behind. The app is right to be
+ * conditional there (it refuses to reseed over applied work), but that makes
+ * *this* gate's starting screen a function of gate order: land on a target with
+ * an applied change and the canvas is not the seed, which is what assertions 5
+ * and 7 compare against.
+ *
+ * So the gate establishes its own precondition instead of inheriting one. Seeding
+ * is idempotent (`POST /targets` writes the world outright), the payload is the
+ * exhibit's own definition rather than a copy, and doing it here — before the app
+ * loads — means the app's conditional path sees exactly the state this gate
+ * intends. A gate that flickers with the order it runs in is worse than no gate.
+ */
+async function resetToSeed(): Promise<void> {
+  // What was inherited is worth saying out loud rather than just overwriting. The
+  // coupling this reset removes is invisible otherwise — "the gate passed" reads the
+  // same whether it started from the seed or from someone else's applied change.
+  const before = await fetch(`${BASE.replace(/\/$/, "")}/stage/targets/${exhibit.target}/artifacts`);
+  if (before.ok) {
+    const live = (await before.json())?.artifacts ?? {};
+    const ids = Object.keys(exhibit.artifacts);
+    const same =
+      ids.length === Object.keys(live).length && ids.every((id) => live[id] === exhibit.artifacts[id]);
+    console.log(
+      same
+        ? `# 시작 상태: 타깃 '${exhibit.target}' 이 시드와 같다 (초기화는 무변경)`
+        : `# 시작 상태: 타깃 '${exhibit.target}' 이 시드와 다르다 — 앞선 게이트가 남긴 것을 물려받았다. 초기화한다`,
+    );
+  }
+  const res = await fetch(`${BASE.replace(/\/$/, "")}/stage/targets`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      target: exhibit.target,
+      artifacts: exhibit.artifacts,
+      ...(exhibit.schema ? { schema: exhibit.schema } : {}),
+      ...(exhibit.data ? { data: exhibit.data } : {}),
+    }),
+  });
+  if (!res.ok) throw new Error(`시드 초기화 실패 — POST /stage/targets ${res.status} ${await res.text()}`);
+}
+
 async function main(): Promise<void> {
+  await resetToSeed();
   const session = await open(APP_URL);
   const { page } = session;
   let n = 1;
@@ -71,7 +117,14 @@ async function main(): Promise<void> {
     n = 2;
     try {
       const seed = await until("the seed-state line", session, () => textOf(page, "#seed-state-text"));
-      if (seed.trim().length === 0) throw new Error("시드 상태 줄이 비었다");
+      // 이 게이트가 시작 상태를 확정했으므로(위 resetToSeed) 호스트가 무엇을 말해야
+      // 하는지도 확정돼 있다. "비어 있지 않다"는 세 분기를 전부 통과시켰고, 그중 둘은
+      // 이 게이트의 나머지 단언이 기대하는 화면이 아니다.
+      if (!seed.includes("시드 상태입니다")) {
+        throw new Error(
+          `시드로 초기화한 타깃인데 호스트가 시드 상태라고 말하지 않는다 — 본문: ${JSON.stringify(seed.trim().slice(0, 120))}`,
+        );
+      }
       ok(n, `호스트가 시드 상태를 화면에 말한다 — "${seed.trim().slice(0, 60)}"`);
     } catch (err) {
       fail(n, "호스트가 시드 상태를 화면에 말한다", err);
