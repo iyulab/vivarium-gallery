@@ -27,6 +27,16 @@ import type { ExhibitDefinition } from "../exhibit-schema.ts";
 const exhibitsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "exhibits");
 
 /** Tags a user can act on — the population an "interactive only" view would keep. */
+/** The short implicit-role table the runtime guest uses; null rather than a guess. */
+const IMPLICIT_ROLE: Record<string, string> = {
+  a: "link", button: "button", h1: "heading", h2: "heading", h3: "heading",
+  h4: "heading", h5: "heading", h6: "heading", img: "img", input: "textbox",
+  li: "listitem", nav: "navigation", ol: "list", option: "option", p: "paragraph",
+  progress: "progressbar", section: "region", select: "combobox", table: "table",
+  tbody: "rowgroup", td: "cell", textarea: "textbox", th: "columnheader",
+  thead: "rowgroup", tr: "row", ul: "list",
+};
+
 const INTERACTIVE = new Set(["a", "button", "input", "select", "textarea", "summary", "label"]);
 
 interface Row {
@@ -97,11 +107,36 @@ async function measure(artifactId: string, source: string, exhibit: ExhibitDefin
   if (withText.length === 0) return `${artifactId}: rendered no text`;
   const leaf = withText.reduce((a, b) => ((a.textContent ?? "").length <= (b.textContent ?? "").length ? a : b));
   const container = elements[0];
+  // The sandbox computes the neighbourhood from the live DOM (edit context 0.2);
+  // this tool mounts in jsdom without a sandbox, so it reproduces the same rule
+  // here. Keeping it beside the measurement is deliberate — if the runtime's
+  // definition of "neighbourhood" moves and this does not, the numbers below stop
+  // describing the thing they claim to measure, and nothing else would say so.
+  const neighbourhood = (el: Element) => {
+    const relation = new Map<Element, "selected" | "ancestor" | "sibling" | "child">();
+    const mark = (target: Element | null, rel: "selected" | "ancestor" | "sibling" | "child") => {
+      if (!target || target === root || !root.contains(target)) return;
+      if (!target.hasAttribute("data-viv-id")) return;
+      if (!relation.has(target)) relation.set(target, rel);
+    };
+    mark(el, "selected");
+    for (let a = el.parentElement; a && a !== root; a = a.parentElement) mark(a, "ancestor");
+    if (el.parentElement) for (const sib of Array.from(el.parentElement.children)) if (sib !== el) mark(sib, "sibling");
+    for (const child of Array.from(el.children)) mark(child, "child");
+    return Array.from(root.querySelectorAll("[data-viv-id]"))
+      .filter((e) => relation.has(e))
+      .map((e) => ({
+        id: e.getAttribute("data-viv-id")!,
+        tag: e.tagName.toLowerCase(),
+        relation: relation.get(e)!,
+        role: e.getAttribute("role") ?? IMPLICIT_ROLE[e.tagName.toLowerCase()] ?? null,
+      }));
+  };
   const context = (el: Element) =>
     buildEditContext({
       profile: null,
       selection: [describe(el)],
-      screenElementIds: ids,
+      screen: neighbourhood(el),
       source: { language: "js", code: source },
     });
   const leafCtx = context(leaf);
@@ -131,7 +166,7 @@ for (const name of readdirSync(exhibitsDir).sort()) {
 }
 
 const pct = (part: number, whole: number) => `${Math.round((part / whole) * 100)}%`;
-console.log("| artifact | elements (interactive) | total leaf / container | source | screen.elementIds | screen, 2-space JSON | untrusted leaf / container |");
+console.log("| artifact | elements (interactive) | total leaf / container | source | screen (neighbourhood) | screen, 2-space JSON | untrusted leaf / container |");
 console.log("| --- | --- | --- | --- | --- | --- | --- |");
 for (const r of rows) {
   console.log(
