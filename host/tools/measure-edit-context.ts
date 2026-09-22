@@ -13,10 +13,18 @@
  * A measurement, not a gate: it prints a table and exits 0. What to do about
  * the numbers is a design question, and the numbers are its input.
  *
+ * It does refuse one thing, loudly. The table describes edit context **0.2**,
+ * and against an older runtime the parts it names do not merely change size —
+ * `screen` is not there at all, and an absent thing measures as a small one
+ * (2 bytes, an empty array). A tool that reads a disappearance as a shrinkage
+ * prints a table that is wrong in the one direction nobody checks, so this one
+ * asks the contract what version it is before measuring it and stops if the
+ * answer is not what the table assumes.
+ *
  * Usage: node host/tools/measure-edit-context.ts
  */
 
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { JSDOM } from "jsdom";
@@ -152,6 +160,38 @@ async function measure(artifactId: string, source: string, exhibit: ExhibitDefin
     leaf: parts(leafCtx),
     container: parts(context(container)),
   };
+}
+
+/**
+ * The contract states its own version, and every context it builds carries it —
+ * so the check asks the installed runtime rather than inferring from a package
+ * number, and it asks by *building something*, which is the same path the
+ * measurement takes. A runtime on edit context 0.1 has no such field: reading
+ * `undefined` here is the 0.1 answer, not a missing check.
+ */
+const REQUIRES_EDIT_CONTEXT = "0.2";
+
+const probe = buildEditContext({
+  profile: null,
+  selection: [],
+  screen: [{ id: "probe", tag: "div", relation: "selected", role: null }],
+  source: null,
+});
+const found = (probe as { editContextVersion?: string }).editContextVersion;
+if (found !== REQUIRES_EDIT_CONTEXT) {
+  const installed = JSON.parse(
+    readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "node_modules", "@vivariumjs", "runtime", "package.json"), "utf8"),
+  ).version;
+  console.error(
+    [
+      `measure-edit-context: refusing to measure — this table describes edit context ${REQUIRES_EDIT_CONTEXT},`,
+      `  but the installed @vivariumjs/runtime ${installed} reports ${found ?? "no version at all (edit context 0.1)"}.`,
+      "  Every column beyond the selection would be wrong, and wrong quietly: on 0.1 the neighbourhood is not",
+      "  carried at all, so `screen` measures 2 bytes — an absent part reads as a small one.",
+      `  Install a runtime carrying edit context ${REQUIRES_EDIT_CONTEXT} and run this again.`,
+    ].join("\n"),
+  );
+  process.exit(1);
 }
 
 const rows: Row[] = [];
