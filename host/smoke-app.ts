@@ -21,7 +21,7 @@
  * already installed and downloads nothing.
  */
 
-import { click, open, sandboxText, shutdown, textOf, until } from "./tools/browser.ts";
+import { click, open, sandboxText, shutdown, textOf, until, type PageSession } from "./tools/browser.ts";
 import exhibit from "../exhibits/dashboard/exhibit.ts";
 
 // The host serves the app under /host/, not at the root — the same URL its startup
@@ -59,6 +59,32 @@ function fail(n: number, desc: string, err: unknown): void {
  * loads — means the app's conditional path sees exactly the state this gate
  * intends. A gate that flickers with the order it runs in is worse than no gate.
  */
+/**
+ * 샌드박스 프레임의 글자가 **판정 조건을 만족할 때까지** 기다린다. «비어 있지 않음»까지만
+ * 기다리면 게스트 모듈이 마운트되기 전 프레임이 잠깐 담는 글자(실측: 샌드박스 부트스트랩
+ * 소스)가 화면으로 판정된다 — 기다림과 판정이 같은 조건이어야 그 창이 닫힌다. 시간 초과면
+ * 마지막으로 본 글자를 말한다.
+ */
+async function untilSandbox(
+  session: PageSession,
+  selector: string,
+  label: string,
+  accept: (text: string) => boolean,
+  failure: string,
+  timeoutMs?: number,
+): Promise<string> {
+  let seen = "";
+  return until(label, session, () =>
+    sandboxText(session.page, selector).then((t) => {
+      seen = t;
+      return accept(t) ? t : "";
+    }),
+    timeoutMs,
+  ).catch((e: Error) => {
+    throw new Error(`${failure} — 본문: ${JSON.stringify(seen.slice(0, 200))} (${e.message})`);
+  });
+}
+
 async function resetToSeed(): Promise<void> {
   // What was inherited is worth saying out loud rather than just overwriting. The
   // coupling this reset removes is invisible otherwise — "the gate passed" reads the
@@ -97,19 +123,8 @@ async function main(): Promise<void> {
   try {
     // ── 1. 마운트 — 생성 UI 가 샌드박스 안에서 실제로 그려진다 ────────────────
     try {
-      // 기다리는 대상은 «아무 글자»가 아니라 **시드가 선언한 것**이다. 게스트 모듈이
-      // 마운트되기 전의 프레임은 전시물이 아닌 글자를 잠깐 담을 수 있고(실측: 샌드박스
-      // 부트스트랩 소스), «비어 있지 않음»까지만 기다리면 그것이 캔버스로 판정됐다.
-      // 총량 하한이 아닌 것도 같은 이유다 — 총량은 값이 전부 빠진 화면도 통과시킨다(cycle-162).
-      let seen = "";
-      await until("the canvas to mount the seed's Revenue card", session, () =>
-        sandboxText(page, "#canvas").then((t) => {
-          seen = t;
-          return t.includes("Revenue") ? t : "";
-        }),
-      ).catch((e: Error) => {
-        throw new Error(`시드 화면에 시드가 선언한 카드가 없다 — 본문: ${JSON.stringify(seen.slice(0, 200))} (${e.message})`);
-      });
+      await untilSandbox(session, "#canvas", "the canvas to mount the seed's Revenue card",
+        (t) => t.includes("Revenue"), "시드 화면에 시드가 선언한 카드가 없다");
       if (session.faults.length > 0) {
         throw new Error(`마운트 중 페이지 결함: ${session.faults.join(" | ")}`);
       }
@@ -166,10 +181,8 @@ async function main(): Promise<void> {
     // ── 4. 프리뷰 — 승인 전에 브랜치 화면을 본다 ────────────────────────────
     n = 4;
     try {
-      const preview = await until("the preview frame", session, () => sandboxText(page, "#preview"));
-      if (!preview.includes("New Metric")) {
-        throw new Error(`프리뷰에 새 카드가 없다 — ${JSON.stringify(preview.slice(0, 200))}`);
-      }
+      await untilSandbox(session, "#preview", "the preview frame to show the new card",
+        (t) => t.includes("New Metric"), "프리뷰에 새 카드가 없다");
       // 프리뷰가 선 동안 **라이브는 그대로**여야 한다(fault-model F1 — 스테이징은 라이브를 건드리지 않는다).
       const live = await sandboxText(page, "#canvas");
       if (live.includes("New Metric")) {
@@ -214,15 +227,9 @@ async function main(): Promise<void> {
     try {
       if (await page.isDisabled("#rollback-btn")) throw new Error("적용 뒤인데 롤백 버튼이 비활성이다");
       await click(page, "#rollback-btn");
-      const live = await until(
-        "the live canvas to return to the seed",
-        session,
-        () => sandboxText(page, "#canvas").then((t) => (t.includes("New Metric") ? "" : t)),
-        60_000,
-      );
-      if (!live.includes("Revenue")) {
-        throw new Error(`롤백이 시드 화면을 되돌리지 못했다 — ${JSON.stringify(live.slice(0, 200))}`);
-      }
+      // «더한 카드가 없다»만으로는 부족하다 — 마운트 전의 프레임도 그 조건을 만족한다.
+      await untilSandbox(session, "#canvas", "the live canvas to return to the seed",
+        (t) => !t.includes("New Metric") && t.includes("Revenue"), "롤백이 시드 화면을 되돌리지 못했다", 60_000);
       ok(n, "롤백 뒤 **화면이 시드로 되돌아온다** — 더한 카드는 사라지고 시드는 남는다");
     } catch (err) {
       fail(n, "롤백 뒤 **화면이 시드로 되돌아온다** — 더한 카드는 사라지고 시드는 남는다", err);
