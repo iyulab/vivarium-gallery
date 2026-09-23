@@ -31,6 +31,7 @@ import type { ElementDescriptor, EditContext } from "@vivariumjs/runtime";
 import { addApproval } from "@vivariumjs/changeset";
 import type { ExhibitDefinition } from "./exhibit-schema.ts";
 import { renderChangesetReview } from "./review.ts";
+import { refusalFacts } from "./refusal-facts.ts";
 
 // ── DOM ──────────────────────────────────────────────────────────────────
 const titleEl = document.getElementById("exhibit-title") as HTMLElement;
@@ -70,40 +71,15 @@ function errorMessage(err: unknown): string {
  */
 function showFailure(where: string, err: unknown): void {
   if (err instanceof HttpFailure && err.isRefusal) {
-    const reason = err.reason ?? "거부";
+    // 어댑터 거부는 층(`AdapterRefused`)과 조항(`adapterReason`)을 함께 싣는다 — 둘 다 보인다.
+    const layer = err.reason ?? "거부";
+    const reason = typeof err.body?.adapterReason === "string" ? `${layer} · ${err.body.adapterReason}` : layer;
     setStatus(`거부됨 (${reason}) — ${where}`, false);
     statusEl.className = "refused";
-    renderTextBlocks([[`거부 사유 — ${reason}`, err.detail], ...factsOf(err.details)]);
+    renderTextBlocks([[`거부 사유 — ${reason}`, err.detail], ...refusalFacts(err.body)]);
     return;
   }
   setStatus(`오류: ${where} — ${errorMessage(err)}`, true);
-}
-
-/**
- * 거부 게이트가 **관측한 사실**을 사람이 읽는 블록으로.
- *
- * 라이브러리는 거부에 `details` 를 싣는다(드리프트면 어긋난 ref · 작성 기준 지문 ·
- * 지금 지문). 산문 `error` 에도 같은 사실이 있지만, 그것을 파싱해 보여 주는 것은
- * BD-01 이 없애려던 바로 그 일이다. 드리프트는 다음 행동이 분명하므로 그 형태로
- * 그리고 — *"이 제안은 낡았다, 지금 상태 위에서 다시 만들어야 한다"* — 모르는
- * 형태는 받은 그대로 보여 준다(게이트별 필드는 추가형이다: 아는 것만 읽는다).
- */
-function factsOf(details: unknown): Array<[string, string]> {
-  if (!details || typeof details !== "object") return [];
-  const d = details as { scope?: unknown; drifted?: unknown; knownRefs?: unknown };
-  if (d.scope === "base-state" && Array.isArray(d.drifted)) {
-    const short = (fp: unknown) => (typeof fp === "string" ? fp.replace(/^sha256:/, "").slice(0, 12) : "—");
-    const lines = d.drifted.map((entry: any) =>
-      entry?.actual == null
-        ? `${entry?.kind} ${entry?.ref} — 지금 대상에 없다 (작성 기준 ${short(entry?.expected)})`
-        : `${entry?.kind} ${entry?.ref} — 작성 기준 ${short(entry?.expected)} → 지금 ${short(entry?.actual)}`,
-    );
-    return [
-      ["어긋난 것 — 제안이 딛고 선 상태가 그 사이 바뀌었다", lines.join("\n")],
-      ["다음 행동", "이 제안은 낡았다. 지금 상태 위에서 다시 제안하면(재기반) 된다 — 거부는 결함이 아니다."],
-    ];
-  }
-  return [["게이트가 관측한 사실", JSON.stringify(details, null, 2)]];
 }
 
 // ── HTTP helpers (mirrors smoke.ts shapes) ───────────────────────────────
@@ -134,11 +110,6 @@ class HttpFailure extends Error {
   /** 라이브러리·호스트가 붙인 구조적 사유(`AdapterRefused` · `RefusalReason` 등). */
   get reason(): string | null {
     return typeof this.body?.reason === "string" ? this.body.reason : null;
-  }
-
-  /** 거부 게이트가 관측한 사실(stage 0.6.0 `details`). 없으면 `null` — 의도적으로 싣지 않는 게이트가 있다. */
-  get details(): unknown {
-    return this.body?.details ?? null;
   }
 
   /** 사람이 읽을 한 줄 — 없으면 상태 코드가 아는 전부다. */

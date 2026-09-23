@@ -39,6 +39,7 @@
 
 import { addApproval, addDataPatch, addSchemaOp, createChangeset, finalize } from "@vivariumjs/changeset";
 import exhibit from "../exhibits/inventory/exhibit.ts";
+import { refusalFacts } from "./refusal-facts.ts";
 
 const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:8890";
 const TARGET = exhibit.target;
@@ -65,6 +66,22 @@ function assertDocumentRefusal(json: any, member: string): void {
   if (!located) throw new Error(`details.errors 가 문서 안의 자리를 짚지 않는다: ${JSON.stringify(json)}`);
   if (!errors.some((e: any) => e.path.endsWith(member))) {
     throw new Error(`details.errors 가 ${member} 를 짚지 않는다: ${JSON.stringify(errors)}`);
+  }
+}
+
+/**
+ * 앱이 이 거부를 **사람 말로** 옮기는가 — 앱이 쓰는 바로 그 함수(`refusal-facts.ts`)에
+ * 호스트가 실제로 돌려준 본문을 넣는다. 구조가 와도 앱이 JSON 덤프로 떨어지면 사람에게는
+ * 산문 파싱과 다를 바 없다(LESSON-20260918 — 판정 구조는 소비자까지 닿아야 한다).
+ */
+function assertReadable(json: any, title: string, mentions: string): void {
+  const facts = refusalFacts(json);
+  if (facts.length === 0 || facts.some(([t]) => t === "게이트가 관측한 사실")) {
+    throw new Error(`앱이 이 거부를 읽지 못하고 받은 그대로 보인다: ${JSON.stringify(facts)}`);
+  }
+  const [head, body] = facts[0];
+  if (!head.includes(title) || !body.includes(mentions)) {
+    throw new Error(`앱 문장이 "${title}" 제목 아래 ${mentions} 를 짚지 않는다: ${JSON.stringify(facts)}`);
   }
 }
 
@@ -175,9 +192,10 @@ async function main(): Promise<void> {
     if (!isFp(entry.expected) || !isFp(entry.actual) || entry.expected === entry.actual) {
       throw new Error(`기대·실제 지문이 구별되지 않는다: ${JSON.stringify(entry)}`);
     }
-    ok(n, "드리프트 거부가 어긋난 ref·기대·실제 지문을 **구조로** 나른다 — 산문 파싱 불필요 (BD-01 해소)");
+    assertReadable(driftRefusal, "어긋난 것", ARTIFACT_ID);
+    ok(n, "드리프트 거부가 어긋난 ref·기대·실제 지문을 **구조로** 나른다 — 산문 파싱 불필요 (BD-01 해소), 앱이 그것을 사람 말로 옮긴다");
   } catch (err) {
-    fail(n, "드리프트 거부가 어긋난 ref·기대·실제 지문을 **구조로** 나른다 — 산문 파싱 불필요 (BD-01 해소)", err);
+    fail(n, "드리프트 거부가 어긋난 ref·기대·실제 지문을 **구조로** 나른다 — 산문 파싱 불필요 (BD-01 해소), 앱이 그것을 사람 말로 옮긴다", err);
   }
 
   // ── 4. 3-facet 제안이 세 facet 의 base 를 전부 선언한다 ──────────────────
@@ -306,6 +324,7 @@ async function main(): Promise<void> {
       throw new Error(`expected 422 AdapterRefused, got ${status}: ${JSON.stringify(json)}`);
     }
     assertDocumentRefusal(json, ".entity");
+    assertReadable(json, "실행할 수 없는 자리", ".entity");
     // 거부는 무엇을 못 찾았는지 말해야 한다 — 코드만으로는 소비자가 다시 물어야 한다.
     if (!String(json.error ?? "").includes("NoSuchEntity")) {
       throw new Error(`거부가 표적을 이름으로 부르지 않는다: ${JSON.stringify(json)}`);
@@ -376,6 +395,7 @@ async function main(): Promise<void> {
       throw new Error(`expected 422 AdapterRefused, got ${status}: ${JSON.stringify(json)}`);
     }
     assertDocumentRefusal(json, ".field");
+    assertReadable(json, "실행할 수 없는 자리", ".field");
     if (!String(json.error ?? "").includes("noSuchFieldHere")) {
       throw new Error(`거부가 필드를 이름으로 부르지 않는다: ${JSON.stringify(json)}`);
     }
