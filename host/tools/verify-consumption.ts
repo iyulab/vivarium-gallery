@@ -19,7 +19,7 @@
  * against the repository — what broke was the consumer reading the installed
  * package, which is also what a tool or an agent reads.
  *
- * Five axes:
+ * Six axes:
  *   1. Registry freshness — for each @vivariumjs dependency: the registry
  *      "latest" must satisfy the declared range (else a fresh consumer
  *      cannot install at all), and publish lag (source version ahead of the
@@ -50,8 +50,15 @@
  *      `npm pack --dry-run` reports it. This one FAILS rather than warns: it
  *      describes the repository, not the registry, so it is fixable before the
  *      release rather than a fact already in a consumer's hands.
+ *   6. .NET consumption — the host half. Freshness and PUBLISH-LAG as in
+ *      axis 1; the provenance of the local restore as in axis 2 (NuGet never
+ *      re-fetches a version it has cached, so a build restored once from a
+ *      local feed keeps being served under the published version number —
+ *      the cache's own record of each package's source is what is read); and a
+ *      clean-room restore from nuget.org alone as in axis 3.
  *
- * Zero dependencies; requires network access to registry.npmjs.org.
+ * Zero dependencies; requires network access to registry.npmjs.org and
+ * api.nuget.org, and the dotnet SDK for axis 6.
  * Usage: node host/tools/verify-consumption.ts [--strict]
  * Exit 0 on PASS (warnings allowed; --strict escalates them, DOC-LAG excepted
  * for the reason given under axis 4), exit 1 otherwise.
@@ -371,6 +378,136 @@ for (const [name] of vivariumDeps) {
         `${unreachable.join(", ")}; a consumer reading the installed package follows them to nothing`,
     );
   }
+}
+
+// ── Axis 6: .NET consumption ───────────────────────────────────────────────
+// The host half of the sample consumes NuGet packages, and the five axes above
+// see none of them. Three checks, each the NuGet counterpart of one npm axis:
+// freshness (axis 1), where the local restore actually came from (axis 2), and
+// a clean-room restore from the registry alone (axis 3).
+//
+// The provenance check exists because NuGet never re-fetches a version its
+// global cache already holds. A package restored once from a local feed —
+// typically a build made just before publishing — keeps being served under the
+// published version number, so local gates can run bits the registry never
+// shipped while every version string says otherwise. The cache records where
+// each package came from (`.nupkg.metadata` → `source`); that is what is read.
+console.log("# axis 6 — .NET consumption");
+const NUGET_REGISTRY = "https://api.nuget.org/v3/index.json";
+const STAGE_HOST = join(SAMPLE_DIR, "host", "stage-host");
+const NUGET_SOURCE_PATHS: Record<string, string> = {
+  "Vivarium.Stage": join(REPO_ROOT, "vivarium-stage", "src", "Vivarium.Stage", "Vivarium.Stage.csproj"),
+  "Vivarium.Changeset": join(REPO_ROOT, "vivarium-changeset", "sdk", "dotnet", "Vivarium.Changeset", "Vivarium.Changeset.csproj"),
+};
+
+function csprojVersion(path: string): string | null {
+  const m = /<Version>([^<]+)<\/Version>/.exec(readFileSync(path, "utf8"));
+  return m ? m[1].trim() : null;
+}
+
+async function nugetLatest(id: string): Promise<string | null> {
+  try {
+    const res = await fetch(`https://api.nuget.org/v3-flatcontainer/${id.toLowerCase()}/index.json`);
+    if (!res.ok) return null;
+    const { versions } = (await res.json()) as { versions: string[] };
+    const stable = versions.filter((v) => parseTriple(v) !== null);
+    return stable.sort((a, b) => cmpTriple(parseTriple(a)!, parseTriple(b)!)).pop() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+const stageCsproj = readFileSync(join(STAGE_HOST, "StageHost.csproj"), "utf8");
+const nugetRefs = [...stageCsproj.matchAll(/<PackageReference\s+Include="(Vivarium\.[^"]+)"\s+Version="([^"]+)"/g)]
+  .map((m) => [m[1], m[2]] as const);
+if (nugetRefs.length === 0) fail("stage-host: no Vivarium.* PackageReference found — nothing to verify");
+
+// 6a — freshness, as axis 1: the pinned version must be the registry latest,
+// and source ahead of the registry is PUBLISH-LAG.
+for (const [id, pinned] of nugetRefs) {
+  const latest = await nugetLatest(id);
+  if (latest === null) {
+    fail(`${id}: cannot resolve NuGet registry latest`);
+    continue;
+  }
+  if (pinned === latest) ok(`${id}: stage-host pins ${pinned}, the registry latest`);
+  else if (parseTriple(pinned) && cmpTriple(parseTriple(pinned)!, parseTriple(latest)!) > 0) {
+    fail(`${id}: stage-host pins ${pinned}, which the registry does not have (latest ${latest}) — fresh consumer cannot restore`);
+  } else {
+    fail(`${id}: RANGE-LAG — stage-host pins ${pinned}, registry latest is ${latest}; bump the pin`);
+  }
+}
+for (const [id, srcPath] of Object.entries(NUGET_SOURCE_PATHS)) {
+  if (!existsSync(srcPath)) {
+    console.log(`info - ${id}: source checkout absent, lag check n/a`);
+    continue;
+  }
+  const src = csprojVersion(srcPath);
+  const latest = await nugetLatest(id);
+  if (src === null || latest === null || parseTriple(src) === null) {
+    fail(`${id}: cannot compare source and registry versions (source ${src ?? "?"}, registry ${latest ?? "?"})`);
+  } else if (cmpTriple(parseTriple(src)!, parseTriple(latest)!) > 0) {
+    warn(`${id}: PUBLISH-LAG — source ${src} ahead of registry ${latest} (fresh consumers get ${latest})`);
+  } else {
+    ok(`${id}: no publish lag (source ${src}, registry ${latest})`);
+  }
+}
+
+// 6b — provenance of the local restore, as axis 2.
+const assetsPath = join(STAGE_HOST, "obj", "project.assets.json");
+if (!existsSync(assetsPath)) {
+  console.log("info - stage-host not restored locally (fresh checkout state), provenance check skipped");
+} else {
+  const assets = JSON.parse(readFileSync(assetsPath, "utf8")) as {
+    packageFolders?: Record<string, unknown>;
+    libraries?: Record<string, { type?: string }>;
+  };
+  const folders = Object.keys(assets.packageFolders ?? {});
+  const restored = Object.entries(assets.libraries ?? {})
+    .filter(([key, lib]) => lib.type === "package" && key.startsWith("Vivarium."))
+    .map(([key]) => key.split("/") as [string, string]);
+  let clean = true;
+  for (const [id, version] of restored) {
+    const metaPath = folders
+      .map((f) => join(f, id.toLowerCase(), version, ".nupkg.metadata"))
+      .find((p) => existsSync(p));
+    if (metaPath === undefined) {
+      fail(`${id} ${version}: restored, but no .nupkg.metadata in any package folder — provenance unknown`);
+      clean = false;
+      continue;
+    }
+    const source = (JSON.parse(readFileSync(metaPath, "utf8")) as { source?: string }).source ?? "";
+    if (source !== NUGET_REGISTRY) {
+      fail(
+        `${id} ${version}: the local restore came from "${source}", not the registry — local gates run a build ` +
+          `nuget.org did not serve. Delete ${dirname(metaPath)} and restore again (the sample's NuGet.Config limits sources to nuget.org)`,
+      );
+      clean = false;
+    }
+  }
+  if (clean) ok(`stage-host local restore: all ${restored.length} Vivarium.* packages came from the registry`);
+}
+
+// 6c — clean-room restore, as axis 3: the project file alone, an empty package
+// cache, and the registry as the only source.
+const netRoom = mkdtempSync(join(tmpdir(), "vivarium-consumption-net-"));
+try {
+  writeFileSync(join(netRoom, "StageHost.csproj"), stageCsproj);
+  writeFileSync(
+    join(netRoom, "NuGet.Config"),
+    `<?xml version="1.0" encoding="utf-8"?>\n<configuration>\n  <packageSources>\n    <clear />\n` +
+      `    <add key="nuget.org" value="${NUGET_REGISTRY}" protocolVersion="3" />\n  </packageSources>\n</configuration>\n`,
+  );
+  const r = spawnSync("dotnet", ["restore", "StageHost.csproj"], {
+    cwd: netRoom,
+    encoding: "utf8",
+    timeout: 300_000,
+    env: { ...process.env, NUGET_PACKAGES: join(netRoom, "packages") },
+  });
+  if (r.status === 0) ok("clean-room: stage-host restores from the NuGet registry alone");
+  else fail(`clean-room: dotnet restore failed (exit ${r.status}): ${`${r.stdout}${r.stderr}`.slice(-300)}`);
+} finally {
+  rmSync(netRoom, { recursive: true, force: true });
 }
 
 // ── summary ────────────────────────────────────────────────────────────────
