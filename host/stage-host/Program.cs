@@ -50,6 +50,14 @@ static IResult AdapterRefused(AdapterRefusedException e) =>
         ? Results.Json(new { error = e.Message, reason = "AdapterRefused", adapterReason = e.Reason.ToString() }, statusCode: 422)
         : Results.Json(new { error = e.Message, reason = "AdapterRefused", adapterReason = e.Reason.ToString(), details = e.Details }, statusCode: 422);
 
+// A target the adapter has never been asked to seed is absent, not a document the
+// backend declined — the refusal names the resource, so it answers as one (404),
+// with the same `reason` whichever door asked about the target.
+static IResult AdapterAnswer(AdapterRefusedException e) =>
+    e.Reason == AdapterRefusalReason.UnknownTarget
+        ? Results.Json(new { error = e.Message, reason = "UnknownTarget" }, statusCode: 404)
+        : AdapterRefused(e);
+
 // Seed a target's live world. Sample bootstrap only — not part of the lifecycle.
 app.MapPost("/targets", async (HttpRequest request) =>
 {
@@ -83,7 +91,7 @@ app.MapGet("/targets/{target}/artifacts", async (string target) =>
         // the app asks about one on every load, before it knows whether a previous
         // session left state behind. The adapter is right to refuse rather than invent
         // a pointer; this answers the refusal as the absence it is.
-        return Results.Json(new { error = e.Message, reason = "UnknownTarget" }, statusCode: 404);
+        return AdapterAnswer(e);
     }
     var world = (JsonObject)JsonNode.Parse(adapter.WorldCanonical(active.StateRef))!;
     return Results.Json(new
@@ -131,6 +139,12 @@ app.MapPost("/targets/{target}/changesets", async (string target, HttpRequest re
     catch (StageRefusedException e)
     {
         return Refused(e);
+    }
+    catch (AdapterRefusedException e)
+    {
+        // Branching asks the adapter for the target's live state first; a target it
+        // never seeded is refused there, before any document is looked at.
+        return AdapterAnswer(e);
     }
 });
 

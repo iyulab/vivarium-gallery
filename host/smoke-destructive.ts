@@ -68,6 +68,24 @@ const agentVersion: string = JSON.parse(
 let passCount = 0;
 const failures: string[] = [];
 
+/**
+ * Vivarium.Stage 0.9 는 어댑터 거부에 이름을 붙인다 — `adapterReason` 이 어느 계약 조항이
+ * 거부했는지를, 문서 거부면 `details.errors` 가 체인지셋 안의 자리를 짚는다. 소비자는 메시지가
+ * 아니라 이 구조로 움직이므로 게이트도 구조를 판정한다. `member` 는 짚혀야 할 멤버(`.entity` 등).
+ */
+function assertDocumentRefusal(json: any, member: string): void {
+  if (json.adapterReason !== "DocumentRefused") {
+    throw new Error(`adapterReason 이 DocumentRefused 가 아니다: ${JSON.stringify(json)}`);
+  }
+  const errors = json.details?.errors;
+  const located = Array.isArray(errors) && errors.length > 0 &&
+    errors.every((e: any) => typeof e?.path === "string" && e.path.startsWith("$") && typeof e?.message === "string");
+  if (!located) throw new Error(`details.errors 가 문서 안의 자리를 짚지 않는다: ${JSON.stringify(json)}`);
+  if (!errors.some((e: any) => e.path.endsWith(member))) {
+    throw new Error(`details.errors 가 ${member} 를 짚지 않는다: ${JSON.stringify(errors)}`);
+  }
+}
+
 function ok(n: number, desc: string): void {
   passCount++;
   console.log(`ok ${n} - ${desc}`);
@@ -299,6 +317,7 @@ async function main(): Promise<void> {
     if (status !== 422 || json.reason !== "AdapterRefused") {
       throw new Error(`expected 422 AdapterRefused, got ${status}: ${JSON.stringify(json)}`);
     }
+    assertDocumentRefusal(json, ".entity");
     if (!String(json.error ?? "").includes(ABSENT_ENTITY)) {
       throw new Error(`거부가 표적을 이름으로 부르지 않는다: ${JSON.stringify(json)}`);
     }
@@ -329,6 +348,7 @@ async function main(): Promise<void> {
     if (status !== 422 || json.reason !== "AdapterRefused") {
       throw new Error(`expected 422 AdapterRefused, got ${status}: ${JSON.stringify(json)}`);
     }
+    assertDocumentRefusal(json, ".field");
     if (!String(json.error ?? "").includes("noSuchFieldHere")) {
       throw new Error(`거부가 필드를 이름으로 부르지 않는다: ${JSON.stringify(json)}`);
     }
@@ -358,6 +378,7 @@ async function main(): Promise<void> {
     if (status !== 422 || json.reason !== "AdapterRefused") {
       throw new Error(`expected 422 AdapterRefused, got ${status}: ${JSON.stringify(json)}`);
     }
+    assertDocumentRefusal(json, ".entity");
     if (!String(json.error ?? "").includes(ABSENT_ENTITY)) {
       throw new Error(`거부가 표적을 이름으로 부르지 않는다: ${JSON.stringify(json)}`);
     }

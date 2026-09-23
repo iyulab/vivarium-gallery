@@ -21,7 +21,10 @@
  * 단언 7·8 은 **거부가 무엇으로 보이는가**를 판정한다. 거부가 크래시와 같은 코드로
  * 나오면 소비자는 제품이 동작한 것과 망가진 것을 구별할 수 없고, 그러면 "거부되는
  * 것이 성공인 턴"을 게이트로 쓸 수 없다. 8 은 대조군이다 — 반대편이 갈려 있지
- * 않으면 7 은 구별 가능성을 증명하지 않는다.
+ * 않으면 7 은 구별 가능성을 증명하지 않는다. Vivarium.Stage 0.9 부터 어댑터가 거부에
+ * 이름(`AdapterRefusalReason`)을 붙이므로, 대조군은 "결함은 500"이 아니라 **거부의 종류가
+ * 경계에서 갈린다**(부재 타깃 404 ↔ 문서 거부 422)를 본다. 결함이 500 인 것은 이제 호스트가
+ * 이름 붙은 타입만 잡는다는 구조가 보장하고, 결함을 일으킬 표면은 만들지 않는다.
  *
  * 단언 9 는 7 의 거부가 **필드 층까지** 닿는지 본다 — Vivarium.Stage 0.6.0 이전에는
  * 닿지 않았고(부재 필드 개명이 조용히 적용됐다) 게이트가 그것을 고정하고 있었다.
@@ -46,6 +49,24 @@ const DOOMED_SKU = "SKU-1003";
 
 let passCount = 0;
 const failures: string[] = [];
+
+/**
+ * Vivarium.Stage 0.9 는 어댑터 거부에 이름을 붙인다 — `adapterReason` 이 어느 계약 조항이
+ * 거부했는지를, 문서 거부면 `details.errors` 가 체인지셋 안의 자리를 짚는다. 소비자는 메시지가
+ * 아니라 이 구조로 움직이므로 게이트도 구조를 판정한다. `member` 는 짚혀야 할 멤버(`.entity` 등).
+ */
+function assertDocumentRefusal(json: any, member: string): void {
+  if (json.adapterReason !== "DocumentRefused") {
+    throw new Error(`adapterReason 이 DocumentRefused 가 아니다: ${JSON.stringify(json)}`);
+  }
+  const errors = json.details?.errors;
+  const located = Array.isArray(errors) && errors.length > 0 &&
+    errors.every((e: any) => typeof e?.path === "string" && e.path.startsWith("$") && typeof e?.message === "string");
+  if (!located) throw new Error(`details.errors 가 문서 안의 자리를 짚지 않는다: ${JSON.stringify(json)}`);
+  if (!errors.some((e: any) => e.path.endsWith(member))) {
+    throw new Error(`details.errors 가 ${member} 를 짚지 않는다: ${JSON.stringify(errors)}`);
+  }
+}
 
 function ok(n: number, desc: string): void {
   passCount++;
@@ -284,6 +305,7 @@ async function main(): Promise<void> {
     if (status !== 422 || json.reason !== "AdapterRefused") {
       throw new Error(`expected 422 AdapterRefused, got ${status}: ${JSON.stringify(json)}`);
     }
+    assertDocumentRefusal(json, ".entity");
     // 거부는 무엇을 못 찾았는지 말해야 한다 — 코드만으로는 소비자가 다시 물어야 한다.
     if (!String(json.error ?? "").includes("NoSuchEntity")) {
       throw new Error(`거부가 표적을 이름으로 부르지 않는다: ${JSON.stringify(json)}`);
@@ -293,12 +315,13 @@ async function main(): Promise<void> {
     fail(n, "부재 표적을 지목한 변경 → 422 AdapterRefused — 어댑터 층 거부가 자기 층을 말한다", err);
   }
 
-  // ── 8. 대조군 — 진짜 결함은 여전히 500 ─────────────────────────────────
+  // ── 8. 대조군 — 거부의 종류가 경계에서 갈린다 ─────────────────────────
   n = 8;
   try {
     // 단언 7 만으로는 "거부가 코드를 하나 갖는다"까지만 말한다. **구별 가능성**은
-    // 반대편이 갈려 있어야 성립하므로 대조군이 판정의 절반이다: 어댑터 예외를
-    // 통째로 거부로 부르면 이 단언이 즉시 빨개진다.
+    // 반대편이 갈려 있어야 성립하므로 대조군이 판정의 절반이다: 어댑터 거부를
+    // 종류와 무관하게 한 코드로 뭉개면 이 단언이 즉시 빨개진다. Vivarium.Stage 0.8
+    // 까지는 이 자리가 500 이었다 — 부재 타깃이 이름 없는 예외로 나와 결함과 같았다.
     const anything: any = finalize(
       addDataPatch(
         createChangeset({
@@ -313,15 +336,15 @@ async function main(): Promise<void> {
         },
       ),
     );
-    const { status } = await raw("/stage/targets/no-such-target/changesets", anything);
-    if (status !== 500) {
+    const { status, json } = await raw("/stage/targets/no-such-target/changesets", anything);
+    if (status !== 404 || json.reason !== "UnknownTarget") {
       throw new Error(
-        `미지 타깃이 ${status} 로 나온다 — 거부와 결함의 경계가 옮겨졌으니 단언 7 과 함께 재검토할 것`,
+        `미지 타깃이 ${status} ${JSON.stringify(json)} 로 나온다 — 부재는 문서 거부(422)와 다른 자리여야 한다`,
       );
     }
-    ok(n, "시드된 적 없는 타깃 → 500 — 거부(422)와 결함(500)이 경계에서 갈린다 (대조군)");
+    ok(n, "시드된 적 없는 타깃 → 404 UnknownTarget — 부재(404)와 문서 거부(422)가 경계에서 갈린다 (대조군)");
   } catch (err) {
-    fail(n, "시드된 적 없는 타깃 → 500 — 거부(422)와 결함(500)이 경계에서 갈린다 (대조군)", err);
+    fail(n, "시드된 적 없는 타깃 → 404 UnknownTarget — 부재(404)와 문서 거부(422)가 경계에서 갈린다 (대조군)", err);
   }
 
   // ── 9. 부재 표적 거부는 **필드 층에도** 있다 ───────────────────────────────
@@ -352,6 +375,7 @@ async function main(): Promise<void> {
     if (status !== 422 || json.reason !== "AdapterRefused") {
       throw new Error(`expected 422 AdapterRefused, got ${status}: ${JSON.stringify(json)}`);
     }
+    assertDocumentRefusal(json, ".field");
     if (!String(json.error ?? "").includes("noSuchFieldHere")) {
       throw new Error(`거부가 필드를 이름으로 부르지 않는다: ${JSON.stringify(json)}`);
     }
