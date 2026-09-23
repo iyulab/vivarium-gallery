@@ -17,7 +17,7 @@
 import type { ModelProvider, ModelRequest } from "@vivariumjs/agent";
 
 export interface AnthropicProviderOptions {
-  /** Model ID. Default: claude-opus-4-8. */
+  /** Model ID. Default: claude-opus-5. */
   model?: string;
   /** API key. Default: process.env.ANTHROPIC_API_KEY. */
   apiKey?: string;
@@ -34,7 +34,7 @@ export interface AnthropicProviderOptions {
 }
 
 export function createAnthropicProvider(options: AnthropicProviderOptions = {}): ModelProvider {
-  const model = options.model ?? process.env.ANTHROPIC_MODEL ?? "claude-opus-4-8";
+  const model = options.model ?? process.env.ANTHROPIC_MODEL ?? "claude-opus-5";
   const apiKey = options.apiKey ?? process.env.ANTHROPIC_API_KEY;
   const maxTokens = options.maxTokens ?? 16000;
   const timeoutMs = options.timeoutMs ?? 300_000;
