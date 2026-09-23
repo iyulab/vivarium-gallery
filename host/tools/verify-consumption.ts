@@ -112,8 +112,19 @@ function fail(desc: string): void {
   console.log(`FAIL - ${desc}`);
 }
 
+/**
+ * Windows 의 `npm` 은 `.cmd` 이고 Node 는 셸 없는 `.cmd` 실행을 막는다(CVE-2024-27980).
+ * 그렇다고 `shell: true` 에 인자 배열을 넘기면 인자가 이스케이프 없이 이어붙는다(DEP0190) —
+ * 그래서 셸은 거기서만 쓰고, 명령 줄은 직접 인용해 한 문자열로 넘긴다(임시 디렉터리 경로에
+ * 공백이 섞여도 쪼개지지 않게). 다른 플랫폼은 셸 없이 실행한다.
+ */
+const quote = (a: string) => (/[\s"&|<>^]/.test(a) ? `"${a.replace(/"/g, '\\"')}"` : a);
+
 function npm(args: string[], cwd: string): { status: number; stdout: string; stderr: string } {
-  const r = spawnSync("npm", args, { cwd, shell: true, encoding: "utf8", timeout: 300_000 });
+  const opts = { cwd, encoding: "utf8" as const, timeout: 300_000 };
+  const r = process.platform === "win32"
+    ? spawnSync(["npm", ...args].map(quote).join(" "), { ...opts, shell: true })
+    : spawnSync("npm", args, opts);
   return { status: r.status ?? -1, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
 }
 
