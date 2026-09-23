@@ -72,7 +72,7 @@ function assertDocumentRefusal(json: any, member: string): void {
 /**
  * 앱이 이 거부를 **사람 말로** 옮기는가 — 앱이 쓰는 바로 그 함수(`refusal-facts.ts`)에
  * 호스트가 실제로 돌려준 본문을 넣는다. 구조가 와도 앱이 JSON 덤프로 떨어지면 사람에게는
- * 산문 파싱과 다를 바 없다(LESSON-20260918 — 판정 구조는 소비자까지 닿아야 한다).
+ * 산문 파싱과 다를 바 없다 — 판정 구조는 소비자까지 닿아야 한다.
  */
 function assertReadable(json: any, title: string, mentions: string): void {
   const facts = refusalFacts(json);
