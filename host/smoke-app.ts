@@ -8,7 +8,9 @@
  * running it by hand" — this is that hand, written down.
  *
  * What it drives is the loop a person walks: open the exhibit, ask for a change,
- * look at the review, approve, watch the screen change, roll it back. Each step is
+ * look at the review, approve, watch the screen change, roll it back — and then
+ * the case a person meets when someone else got there first: the approval is
+ * refused, and the screen must say "refused", not "error". Each step is
  * judged on what the screen shows, not on what the host reported, and the two are
  * compared where they should agree.
  *
@@ -22,13 +24,14 @@
  */
 
 import { click, open, sandboxText, shutdown, textOf, until, type PageSession } from "./tools/browser.ts";
+import { addApproval } from "@vivariumjs/changeset";
 import exhibit from "../exhibits/dashboard/exhibit.ts";
 
 // The host serves the app under /host/, not at the root — the same URL its startup
 // line prints. A gate that guesses the root gets a 404 page and blames the app.
 const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:8890";
 const APP_URL = `${BASE.replace(/\/$/, "")}/host/index.html`;
-const TOTAL = 7;
+const TOTAL = 8;
 
 let passCount = 0;
 const failures: string[] = [];
@@ -233,6 +236,86 @@ async function main(): Promise<void> {
       ok(n, "롤백 뒤 **화면이 시드로 되돌아온다** — 더한 카드는 사라지고 시드는 남는다");
     } catch (err) {
       fail(n, "롤백 뒤 **화면이 시드로 되돌아온다** — 더한 카드는 사라지고 시드는 남는다", err);
+    }
+
+    // ── 8. 경쟁 — 다른 행위자가 먼저 적용하면 승인은 «거부»로 보인다 ─────────
+    // 프리뷰와 승인 사이에 라이브가 움직이는 것은 이 제품이 전제하는 정상 사건이다
+    // (검토에는 시간이 걸린다). 그때 stage 는 낡은 base 위의 문서를 받지 않고, 앱은
+    // 그것을 오류가 아니라 **거부**로 — 사유와 함께 — 말해야 한다. 앱이 거부 구조를
+    // 읽는 코드는 있었지만, 앱 UI 로는 거부를 일으킬 길이 없어 실제 화면에서 판정된 적이
+    // 없었다. 여기서는 앱이 프리뷰 때 stage 에 보내는 문서를 그대로 받아 «다른 검토자»가
+    // 먼저 승인·적용한다 — 같은 제안을 두 사람이 검토하다 한 사람이 먼저 누른 경우다.
+    n = 8;
+    try {
+      const proposed = page.waitForRequest(
+        (r) => r.method() === "POST" && /\/stage\/targets\/[^/]+\/changesets$/.test(r.url()),
+        { timeout: 60_000 },
+      );
+      await page.fill("#chat-input", "대시보드에 지표 카드를 하나 추가해 줘");
+      await click(page, "#send-btn");
+      const changeset = JSON.parse((await proposed).postData() ?? "null");
+      await until(
+        "the app to say the preview is ready",
+        session,
+        () => textOf(page, "#status").then((t) => (t.includes("프리뷰 준비됨") ? t : "")),
+        60_000,
+      );
+
+      const stage = `${BASE.replace(/\/$/, "")}/stage`;
+      const postJson = async (path: string, body: unknown) => {
+        const res = await fetch(`${stage}${path}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(`다른 검토자의 적용이 실패했다 — POST ${path} ${res.status} ${JSON.stringify(json)}`);
+        return json;
+      };
+      const other = addApproval(changeset, { approvedBy: "another-reviewer", approvedAt: new Date().toISOString() });
+      const otherSession = await postJson(`/targets/${exhibit.target}/changesets`, other);
+      const otherApply = await postJson(`/sessions/${otherSession.sessionId}/apply`, {
+        actor: "another-reviewer",
+        evidence: { observed: "applied from another review" },
+      });
+      const liveAfterOther = otherApply.artifacts;
+
+      await click(page, "#approve-btn");
+      const status = await until(
+        "the app to answer the approval",
+        session,
+        () => textOf(page, "#status").then((t) => (/거부됨|오류|완료/.test(t) ? t : "")),
+        60_000,
+      );
+      if (!status.includes("거부됨")) {
+        throw new Error(`낡은 base 위의 승인이 거부가 아니라 다른 것으로 보인다 — 상태: ${JSON.stringify(status)}`);
+      }
+      const statusClass = await page.getAttribute("#status", "class");
+      if (statusClass !== "refused") {
+        throw new Error(`거부가 거부의 모양이 아니다 — #status class=${JSON.stringify(statusClass)}`);
+      }
+      if (await page.isHidden("#refusal-detail")) throw new Error("거부했는데 사유 칸이 숨어 있다");
+      const detail = await textOf(page, "#refusal-detail");
+      // 산문 한 줄로 끝나면 안 된다 — 거부 구조(`details.drifted`)가 **무엇이** 어긋났는지와
+      // **다음 행동**으로 화면에 닿아야 한다 — 판정 구조가 사람에게 닿지 않으면 거부는 여전히 읽을 수 없는 빨강이다.
+      for (const [what, needle] of [
+        ["거부 사유", "거부 사유"],
+        ["어긋난 것", "어긋난 것"],
+        ["어긋난 아티팩트", "ui-artifact dashboard-main"],
+        ["다음 행동", "다음 행동"],
+      ] as const) {
+        if (!detail.includes(needle)) {
+          throw new Error(`사유 칸에 ${what} 가 없다 — ${JSON.stringify(detail.slice(0, 300))}`);
+        }
+      }
+      // 거부는 아무것도 바꾸지 않았어야 한다 — 라이브는 다른 검토자가 둔 그대로다.
+      const liveNow = await fetch(`${stage}/targets/${exhibit.target}/artifacts`).then((r) => r.json());
+      if (JSON.stringify(liveNow.artifacts) !== JSON.stringify(liveAfterOther)) {
+        throw new Error("거부된 승인이 라이브를 바꿨다");
+      }
+      ok(n, `먼저 적용된 뒤의 승인은 **거부**로 보인다 — "${status.trim().slice(0, 70)}", 사유 칸이 열리고 라이브는 그대로다`);
+    } catch (err) {
+      fail(n, "먼저 적용된 뒤의 승인은 **거부**로 보인다 — 사유 칸이 열리고 라이브는 그대로다", err);
     }
 
     // 페이지가 조용히 터지고 있었다면 위 단언들이 초록이어도 그것은 결함이다.
