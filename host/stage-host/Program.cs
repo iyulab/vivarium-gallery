@@ -35,19 +35,20 @@ static IResult Refused(StageRefusedException e) =>
         : Results.Json(new { error = e.Message, reason = e.Reason.ToString(), details = e.Details }, statusCode: 409);
 
 // An adapter that refuses is the product working; an adapter that faults is a
-// bug. Both leave the library as the same exception type, so mapping on the
-// type would put them under one code — which is what a 500 already did, and a
-// 500 reads as "we broke". The distinction we can make honestly is **which
-// door it came out of**: adapter-api §3 names `prepare` as the door that must
-// refuse a document it cannot execute honestly, so an exception out of that one
-// call is a refusal by contract. Every other adapter call keeps its 500.
+// bug. The adapter contract names its refusals (`AdapterRefusedException`,
+// adapter-api §6), so the two are told apart by type and anything else an
+// adapter throws stays a 500 — a fault, reported as one.
 //
 // 409 stays the library's own verdicts (their `reason` is a library enum);
 // 422 says the lifecycle gates had no objection and the backend could not carry
-// out these instructions against the live world. The payload names the layer so
-// a stored refusal still says what judged it once the status code is gone.
-static IResult AdapterRefused(InvalidOperationException e) =>
-    Results.Json(new { error = e.Message, reason = "AdapterRefused" }, statusCode: 422);
+// out these instructions against the live world. `reason` names the layer so a
+// stored refusal still says what judged it once the status code is gone;
+// `adapterReason` and `details` are the adapter's own, forwarded as-is — for a
+// document refusal, `details.errors` locates each problem in the changeset.
+static IResult AdapterRefused(AdapterRefusedException e) =>
+    e.Details is null
+        ? Results.Json(new { error = e.Message, reason = "AdapterRefused", adapterReason = e.Reason.ToString() }, statusCode: 422)
+        : Results.Json(new { error = e.Message, reason = "AdapterRefused", adapterReason = e.Reason.ToString(), details = e.Details }, statusCode: 422);
 
 // Seed a target's live world. Sample bootstrap only — not part of the lifecycle.
 app.MapPost("/targets", async (HttpRequest request) =>
@@ -76,20 +77,12 @@ app.MapGet("/targets/{target}/artifacts", async (string target) =>
     {
         active = await adapter.ActiveStateAsync(target);
     }
-    catch (InvalidOperationException e)
+    catch (AdapterRefusedException e) when (e.Reason == AdapterRefusalReason.UnknownTarget)
     {
         // A target this host has never been asked to seed is absent, not broken — and
         // the app asks about one on every load, before it knows whether a previous
-        // session left state behind. Letting the adapter's throw reach Kestrel made that
-        // ordinary question arrive as a 500 with a stack trace, which is the shape
-        // cycle-158 ruled out for the refusal path: absence that looks like a crash
-        // cannot be acted on by the caller or judged by a gate.
-        //
-        // The adapter is right to throw — the conformance kit requires it to refuse an
-        // unknown target rather than invent a pointer. What is missing is a way to tell
-        // that refusal from a real fault without reading the message; this door is the
-        // one place that knows only one of the two can happen here, so the mapping lives
-        // here (adapter-api §Error taxonomy is unspecified in v0 — fourth observation).
+        // session left state behind. The adapter is right to refuse rather than invent
+        // a pointer; this answers the refusal as the absence it is.
         return Results.Json(new { error = e.Message, reason = "UnknownTarget" }, statusCode: 404);
     }
     var world = (JsonObject)JsonNode.Parse(adapter.WorldCanonical(active.StateRef))!;
@@ -117,7 +110,7 @@ app.MapPost("/targets/{target}/changesets", async (string target, HttpRequest re
             await adapter.PrepareAsync(branch.BranchRef,
                 new PreparedFacets(session.Fingerprint, (JsonObject)changeset["patches"]!.DeepClone()));
         }
-        catch (InvalidOperationException e)
+        catch (AdapterRefusedException e)
         {
             // The branch exists by now and nothing will ever adopt it — a refused
             // document has no session. `discard` is declared always safe (staging
@@ -157,6 +150,13 @@ app.MapPost("/sessions/{id}/apply", async (string id, HttpRequest request) =>
     catch (StageRefusedException e)
     {
         return Refused(e);
+    }
+    catch (AdapterRefusedException e)
+    {
+        // ApplyAsync prepares the approved document before it flips; a backend that
+        // refuses it there is the same verdict as at propose, and Stage passes it
+        // through unwrapped.
+        return AdapterRefused(e);
     }
 });
 
