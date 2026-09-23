@@ -127,8 +127,18 @@ export async function until<T>(
   const deadline = Date.now() + timeoutMs;
   let last: unknown;
   for (;;) {
-    last = await read(session.page).catch((e) => `<read threw: ${(e as Error).message}>`);
-    if (last && last !== "<read threw>") return last as T;
+    // A read that throws has not observed anything yet — it is not a value. Keeping the
+    // error only for the timeout message is what stops it being returned as the answer
+    // (the sentinel used to be compared against a string it never equalled, so every
+    // thrown read "succeeded" with its own error text).
+    let observed = false;
+    try {
+      last = await read(session.page);
+      observed = true;
+    } catch (e) {
+      last = `<read threw: ${(e as Error).message}>`;
+    }
+    if (observed && last) return last as T;
     if (Date.now() > deadline) {
       const faults = session.faults.length > 0 ? `\n  page faults:\n${session.faults.map((f) => `    ${f}`).join("\n")}` : "";
       throw new Error(`timed out waiting for ${label} (${timeoutMs}ms) — last value: ${JSON.stringify(last)}${faults}`);

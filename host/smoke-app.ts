@@ -97,14 +97,19 @@ async function main(): Promise<void> {
   try {
     // ── 1. 마운트 — 생성 UI 가 샌드박스 안에서 실제로 그려진다 ────────────────
     try {
-      const canvas = await until("the canvas to mount the exhibit", session, () =>
-        sandboxText(page, "#canvas").then((t) => (t.trim().length > 0 ? t : "")),
-      );
-      // 시드 대시보드는 카드들을 그린다. 총량 하한이 아니라 **시드가 실제로 선언한 것**을
-      // 본다 — 총량은 값이 전부 빠진 화면도 통과시킨다(cycle-162 가 실측한 사각).
-      if (!canvas.includes("Revenue")) {
-        throw new Error(`시드 화면에 시드가 선언한 카드가 없다 — 본문: ${JSON.stringify(canvas.slice(0, 200))}`);
-      }
+      // 기다리는 대상은 «아무 글자»가 아니라 **시드가 선언한 것**이다. 게스트 모듈이
+      // 마운트되기 전의 프레임은 전시물이 아닌 글자를 잠깐 담을 수 있고(실측: 샌드박스
+      // 부트스트랩 소스), «비어 있지 않음»까지만 기다리면 그것이 캔버스로 판정됐다.
+      // 총량 하한이 아닌 것도 같은 이유다 — 총량은 값이 전부 빠진 화면도 통과시킨다(cycle-162).
+      let seen = "";
+      await until("the canvas to mount the seed's Revenue card", session, () =>
+        sandboxText(page, "#canvas").then((t) => {
+          seen = t;
+          return t.includes("Revenue") ? t : "";
+        }),
+      ).catch((e: Error) => {
+        throw new Error(`시드 화면에 시드가 선언한 카드가 없다 — 본문: ${JSON.stringify(seen.slice(0, 200))} (${e.message})`);
+      });
       if (session.faults.length > 0) {
         throw new Error(`마운트 중 페이지 결함: ${session.faults.join(" | ")}`);
       }
