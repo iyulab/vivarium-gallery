@@ -1,5 +1,5 @@
 /**
- * form-survey 전시물 — 도메인 축 신규 #3 (설계 §2 1차 범위).
+ * form-survey 전시물 — 도메인 축 신규 #3.
  *
  * 제품 피드백 설문 폼: 질문 카드(척도/서술) + 제출. 질문 목록은 아티팩트
  * 소유 (widget-list 교훈), `survey.submit` capability 는 in-memory 제출

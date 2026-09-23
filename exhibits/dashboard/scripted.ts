@@ -1,5 +1,5 @@
 /**
- * Deterministic scripted "model" for the dashboard-builder sample. Plays the
+ * Deterministic scripted "model" for the dashboard exhibit. Plays the
  * ModelProvider port a real LLM would occupy (vivarium-agent/docs/getting-started.md
  * §1) — the harness cannot tell the difference, which is the point.
  *

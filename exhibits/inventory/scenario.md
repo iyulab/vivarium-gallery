@@ -60,7 +60,7 @@
 node host/smoke-3facet.ts     # 기대: smoke-3facet: 8/8 PASS
 ```
 
-## 거부 경로 (T2 — `host/smoke-refusal.ts`)
+## 거부 경로 (`host/smoke-refusal.ts`)
 
 거부는 결함이 아니라 기능이다. 이 전시물은 갤러리에서 처음으로 **드리프트 거부를
 실제로 일으킨다** — out-of-band 조작 없이, 같은 base 에서 세션 둘을 따고 하나를
@@ -102,7 +102,7 @@ node host/smoke-3facet.ts     # 기대: smoke-3facet: 8/8 PASS
 옛 형태(`error`·`reason`)로 직렬화하면 3 은 초록인 채 아무것도 전달되지 않는다
 (0.6.0 범프 직후 이 호스트가 정확히 그 상태였다).
 
-## 승인 전 검토 표면 (T3 — `host/smoke-review.ts`)
+## 승인 전 검토 표면 (`host/smoke-review.ts`)
 
 "검토 가능한 단위"라는 주장의 **검토 절반**이 그동안 화면에 없었다 — 프리뷰는 바뀐
 결과를 보여줄 뿐, *무엇이 왜* 바뀌는지는 어디에도 없었다. 이제 승인 버튼 위에

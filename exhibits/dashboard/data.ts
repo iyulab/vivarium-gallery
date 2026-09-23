@@ -1,8 +1,8 @@
 /**
- * Deterministic in-memory dataset for the dashboard-builder sample
- * (Phase 6 dogfooding, mission M6 — gallery-quality dashboard).
+ * Deterministic in-memory dataset for the dashboard exhibit
+ * (a gallery-quality dashboard).
  *
- * UI-only 원칙 (samples/README.md 규율 2): this is the sample's mock
+ * UI-only 원칙 (README 규율 2): this is the sample's mock
  * "backend" — hand-authored, no randomness, no external service. It is
  * served to generated UI exclusively through the `dashboard.dataset`
  * capability granted in app.ts; the model never sees these values in its

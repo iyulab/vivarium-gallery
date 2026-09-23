@@ -25,7 +25,7 @@
 - `rollback.json` — 게이트 기록
 - `screenshot.png` — 실행 주체가 캡처 (없으면 미캡처)
 
-## 관찰 (실행 주체 주석 — ⑥ 해제 체인)
+## 관찰 (실행 주체 주석 — agent 0.0.3 게시 후 재실행)
 
 - **시나리오 판정: 완주** — agent **0.0.3**(게시본) × opus. 핵심 실증:
   - 턴 2 surgical `attempts=2, changedLines=1` — 1차 시도가 no-op 을 냈고

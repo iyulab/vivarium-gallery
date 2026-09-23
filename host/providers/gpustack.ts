@@ -1,6 +1,6 @@
 /**
  * Real ModelProvider backed by a GPUStack (OpenAI-compatible) endpoint —
- * 모델/조건 다양화 축(설계 §2)의 로컬 모델 provider. anthropic.ts와 동일한
+ * 모델/조건 다양화 축의 로컬 모델 provider. anthropic.ts와 동일한
  * 형태(raw fetch, 자격증명은 환경에서만, onUsage 콜백)를 유지한다.
  *
  * 2026-07-19 벤치 실증: qwen3.6-35b-a3b로 agent 하니스 2턴(A/build 122.5s,

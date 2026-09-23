@@ -8,7 +8,7 @@
  * gate, retry loop, lineage) is enforced by the harness, not by model
  * behavior. `ModelProvider`/`ModelRequest` are imported type-only from the
  * published `@vivariumjs/agent` package — never from submodule sources
- * (samples/README.md 규율 1: 레지스트리 패키지만 소비).
+ * (README 규율 1: 레지스트리 패키지만 소비).
  *
  * Credentials come from the environment (ANTHROPIC_API_KEY) — the harness
  * never owns credentials or transports (agent ports contract).
@@ -34,7 +34,7 @@ export interface AnthropicProviderOptions {
   effort?: "low" | "medium" | "high" | "xhigh" | "max";
   /**
    * Called with the API-reported token usage of each successful call
-   * (Phase 6.e turn-cost instrumentation). Optional — the provider works
+   * (turn-cost instrumentation). Optional — the provider works
    * identically without it.
    */
   onUsage?(usage: { inputTokens: number; outputTokens: number }): void;

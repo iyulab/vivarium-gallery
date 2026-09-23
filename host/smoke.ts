@@ -1,7 +1,6 @@
 /**
- * gallery host scripted round-trip smoke — dashboard-builder smoke.ts 의
- * 동등성 이식본 (G1 게이트). 단언 의미는 원본 11건과 1:1 동일해야 하며,
- * 이 스모크가 전부 통과하는 것이 dashboard-builder 은퇴 게이트의 전제다.
+ * gallery host scripted round-trip smoke — 은퇴한 선행 샘플의 smoke 를 옮긴
+ * 동등성 스모크. 단언 의미는 원본 11건과 1:1 동일해야 한다.
  *
  * dashboard 전시물을 구동 대상으로 고정한다 — scripted provider 의 결정적
  * 응답("카드 추가"→New Metric, refine→Active Users)이 단언에 박혀 있기
@@ -11,8 +10,8 @@
  * Prerequisite: stage-host (8891) + host/server.ts (8890, exhibit=dashboard,
  * MODEL_PROVIDER 미설정 — 결정성은 scripted provider 에 의존).
  *
- * 단언 12는 갤러리 고유 확장 — 롤백 공통 게이트(tools/rollback-gate.ts,
- * 설계 §3)의 4단계 판정을 scripted provider로 결정적으로 검증한다.
+ * 단언 12는 갤러리 고유 확장 — 롤백 공통 게이트(tools/rollback-gate.ts)의
+ * 4단계 판정을 scripted provider로 결정적으로 검증한다.
  *
  * 단언 13은 갤러리 정적 인덱스(index/build-index.ts) 생성을, 단언 14는
  * 렌더 검증(tools/render-check.ts — validated 여도 빈 렌더를 잡는다)을 검증한다. 단언 15는
@@ -43,7 +42,7 @@ const ARTIFACT_ID = exhibit.primaryArtifactId;
 const SEED_CONTENT = exhibit.artifacts[ARTIFACT_ID];
 const TOTAL = 19;
 
-// Phase 6.e turn-cost instrumentation gate: every agent turn this smoke
+// Turn-cost instrumentation gate: every agent turn this smoke
 // drives must land in GET /agent/metrics (assertion 11).
 let agentTurnsDriven = 0;
 
@@ -377,7 +376,7 @@ async function main(): Promise<void> {
     }
   }
 
-  // ── 11. turn-cost instrumentation (Phase 6.e) — every agent turn this
+  // ── 11. turn-cost instrumentation — every agent turn this
   //    run drove has a metrics record with latency + artifact size ─────────
   n = 11;
   try {
@@ -406,7 +405,7 @@ async function main(): Promise<void> {
     fail(n, "GET /agent/metrics — 턴 비용 계측 기록", err);
   }
 
-  // ── 12. 롤백 공통 게이트 (설계 §3) — 게이트 도구의 4단계 판정을
+  // ── 12. 롤백 공통 게이트 — 게이트 도구의 4단계 판정을
   //    scripted 턴-1 changeset으로 결정적으로 검증 ──────────────────────────
   n = 12;
   try {

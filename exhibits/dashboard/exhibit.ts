@@ -1,7 +1,7 @@
 /**
- * dashboard 전시물 — 갤러리 전시물 #1 (dashboard-builder 이식, G1).
+ * dashboard 전시물 — 갤러리 전시물 #1.
  *
- * dashboard-builder 샘플(M1~M8 완주 표면)을 ExhibitDefinition 계약으로
+ * 은퇴한 선행 대시보드 샘플을 ExhibitDefinition 계약으로
  * 재표현한 것. 시드·capability·knowledge·scripted provider 는 원본과
  * 동일해야 smoke 동등성이 성립한다. 원본이 은퇴하면 이 디렉터리가 정본.
  */
@@ -48,7 +48,7 @@ const exhibit: ExhibitDefinition = {
   meta: {
     name: "dashboard",
     title: "커머스 분석 대시보드",
-    description: "채팅으로 대시보드 위젯 카드를 구축·변형하는 전시물 — dashboard-builder(M1~M8) 이식본",
+    description: "채팅으로 대시보드 위젯 카드를 구축·변형하는 전시물",
     domain: "dashboard",
   },
   target: "dashboard",

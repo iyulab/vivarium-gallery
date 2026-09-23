@@ -174,7 +174,7 @@ app.MapPost("/sessions/{id}/apply", async (string id, HttpRequest request) =>
     }
 });
 
-// Rollback: the defined path back (fixed principle 4).
+// Rollback: the defined path back.
 app.MapPost("/sessions/{id}/rollback", async (string id, HttpRequest request) =>
 {
     if (!sessions.TryGetValue(id, out var session)) return Results.NotFound();
@@ -191,7 +191,7 @@ app.MapPost("/sessions/{id}/rollback", async (string id, HttpRequest request) =>
     }
 });
 
-// The audit trail — append-only, machine-verifiable (fixed principle 6).
+// The audit trail — append-only, machine-verifiable.
 app.MapGet("/ledger", async () => Results.Text(await ledger.ExportJsonAsync(), "application/json"));
 
 Console.WriteLine($"stage host: http://localhost:{port}");

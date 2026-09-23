@@ -1,5 +1,5 @@
 /**
- * gallery consumption reproducibility gate (Phase 5.d — dashboard-builder 이식).
+ * gallery consumption reproducibility gate.
  *
  * Verifies that a FRESH consumer — clone, no lockfile (this sample's lockfile
  * is deliberately untracked; see README "소비 현실성") — can reach the state

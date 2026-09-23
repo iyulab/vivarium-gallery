@@ -1,8 +1,8 @@
 /**
- * gallery host server — 전시물-무관 공유 호스트 (samples/README.md 규율 1:
- * 레지스트리 패키지만 소비). dashboard-builder server.ts 의 일반화 이식본:
- * 전시물-특수 요소(시드·knowledge·scripted provider·target)는 전부
- * ExhibitDefinition(exhibit-schema.ts) 뒤로 밀려났고, 이 서버는 계약만 본다.
+ * gallery host server — 전시물-무관 공유 호스트 (README 규율 1:
+ * 레지스트리 패키지만 소비). 전시물-특수 요소(시드·knowledge·scripted
+ * provider·target)는 전부 ExhibitDefinition(exhibit-schema.ts) 뒤에 있고,
+ * 이 서버는 계약만 본다.
  *
  *   POST /agent/session  { intent, editContext?, artifacts }  → turn 1
  *   POST /agent/refine   { instruction, editContext?, baseArtifacts? } → turn N+1
@@ -81,7 +81,7 @@ const stageUrl = process.env.STAGE_URL ?? "http://localhost:8891";
 // Hybrid switch: MODEL_PROVIDER=anthropic|gpustack opts into a real model
 // provider; unset (the default) keeps the exhibit's deterministic scripted
 // provider smoke.ts depends on.
-// Turn-cost instrumentation (Phase 6.e): provider calls are timed at this
+// Turn-cost instrumentation: provider calls are timed at this
 // injection point, token usage comes from the Anthropic adapter when real.
 const metrics = createTurnMetrics();
 function resolveProvider() {
@@ -164,7 +164,7 @@ async function handleAgent(pathname: string, body: Record<string, unknown>): Pro
   if (pathname === "/agent/session") {
     session = createProposalSession({
       provider,
-      // Knowledge port (fixed principle 4): the exhibit's catalog/rules,
+      // Knowledge port: the exhibit's catalog/rules,
       // recorded in every proposal's provenance.
       knowledge: exhibit.createKnowledge?.() ?? [],
       sessionId: `gallery:${exhibit.meta.name}`,
@@ -185,13 +185,13 @@ async function handleAgent(pathname: string, body: Record<string, unknown>): Pro
     return { ...result, history: session.history() };
   }
   if (pathname === "/agent/metrics") {
-    // Turn-cost record (Phase 6.e): one entry per agent turn — latency,
+    // Turn-cost record: one entry per agent turn — latency,
     // provider calls (tokens when the API reports them), artifact size.
     return { turns: metrics.list() };
   }
   if (pathname === "/agent/history") {
-    // Lineage visibility (M6 follow-up): the session's state-machine
-    // transcript — one record per turn, fingerprints included — so mission
+    // Lineage visibility: the session's state-machine
+    // transcript — one record per turn, fingerprints included — so scenario
     // runs can verify the refine chain without scraping turn responses.
     return session ? { session: session.describe(), history: session.history() } : { session: null, history: [] };
   }

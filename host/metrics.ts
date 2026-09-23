@@ -1,5 +1,5 @@
 /**
- * Turn-cost instrumentation (Phase 6.e — 상설 계측).
+ * Turn-cost instrumentation (상설 계측).
  *
  * Records, for every agent turn (/agent/session, /agent/refine), the cost
  * axes that the diff-profile promotion threshold will be judged against

@@ -1,5 +1,5 @@
 /**
- * 롤백 공통 게이트 (설계 §3) — 모든 시나리오가 마지막에 통과해야 완주.
+ * 롤백 공통 게이트 — 모든 시나리오가 마지막에 통과해야 완주.
  *
  * 게이트 4단계를 호스트 HTTP 표면에 대해 실행하고 판정 기록을 돌려준다:
  *   1. 롤백 실행 → state === "RolledBack"
@@ -12,9 +12,9 @@
  *      — schema·data·ui 가 **함께** 체크포인트로 돌아왔는지. UI 바이트 일치는
  *      "UI 만 돌아온" 부분 복귀를 구분하지 못한다.
  *
- * 실행 주체(run-cycle 세션 또는 smoke)가 상태 타임라인을 알고 있으므로
+ * 실행 주체(실모델 실행 또는 smoke)가 상태 타임라인을 알고 있으므로
  * 체크포인트·changeset은 호출자가 공급한다. 기록은 rollback.json 형식
- * (아카이브 규격, 설계 §3)이다. 판정 실패는 예외가 아니라 record.passed
+ * (아카이브 규격)이다. 판정 실패는 예외가 아니라 record.passed
  * === false 로 표현한다 — 실패 자체가 dogfooding의 관찰 대상이므로.
  *
  * Library + CLI 겸용. CLI: node rollback-gate.ts <spec.json> [--out <path>]

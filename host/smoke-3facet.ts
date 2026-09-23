@@ -1,5 +1,5 @@
 /**
- * 3-facet 동반 변경 스모크 (T1 게이트) — inventory 전시물 고정.
+ * 3-facet 동반 변경 스모크 — inventory 전시물 고정.
  *
  * `smoke.ts` 와 별개인 이유: 그쪽 14 단언은 은퇴한 선행 샘플과의 1:1 동등성
  * 이식본이고 dashboard 전시물에 고정돼 있다. 호스트 프로세스 하나가 전시물
@@ -230,7 +230,7 @@ async function main(): Promise<void> {
     fail(n, "내용 판독 — 스키마에 date 필드·행 3건 백필·표에 열 추가가 전부 착지", err);
   }
 
-  // ── 7. 롤백 공통 게이트 + facet 동반 복귀 (T1 의 핵심 단언) ──────────────
+  // ── 7. 롤백 공통 게이트 + facet 동반 복귀 (이 게이트의 핵심 단언) ────────
   n = 7;
   try {
     const record = await runRollbackGate({

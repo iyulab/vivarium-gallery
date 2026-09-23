@@ -154,7 +154,7 @@ node host/tools/verify-consumption.ts
 모두 화면이 말한다 — 조용히 지우지 않는 것이 요점이므로 조용히 보존하는 것도 답이
 아니다. 게이트는 `POST /stage/targets` 를 직접 부르므로 이 조건에 걸리지 않는다.
 
-## 시나리오 실행 도구 (run-cycle 세션이 사용)
+## 시나리오 실행 도구 (실모델 실행 주체가 사용)
 
 - `host/tools/drive-scenario.ts` — scenario.md 턴 시퀀스의 선언적
   spec(JSON)을 받아 시드→턴 루프(승인·apply)→롤백 게이트까지 구동.
@@ -180,7 +180,7 @@ node host/tools/verify-consumption.ts
     값이 전부 빠진 대시보드를 텍스트 하한은 19자에서 잡지만, 카드 하나만 늘면
     29자가 되어 통과시킨다. 판정의 유효 범위가 **옳음이 아니라 크기**로 정해지는
     자리이고, 자리 선언은 둘 다 잡는다.
-- `host/tools/rollback-gate.ts` — 롤백 공통 게이트(설계 §3) 4단계 판정:
+- `host/tools/rollback-gate.ts` — 롤백 공통 게이트 4단계 판정:
   롤백 → 체크포인트 바이트 일치 → ledger 계보 정합 → 재적용. 결과는
   `rollback.json` 형식. 라이브러리 + CLI 겸용.
 - `host/tools/archive-run.ts` — 실행 1회를

@@ -1,5 +1,5 @@
 /**
- * landing-page 전시물의 결정적 mock 카피 (UI-only 원칙 — samples/README.md
+ * landing-page 전시물의 결정적 mock 카피 (UI-only 원칙 — README
  * 규율 2). `landing.content` capability 로만 노출되고, 모델 프롬프트에는
  * knowledge.ts 가 SHAPE 만 기술한다 (dashboard의 data.ts와 동일 분리).
  */

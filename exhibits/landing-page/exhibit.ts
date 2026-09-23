@@ -1,5 +1,5 @@
 /**
- * landing-page 전시물 — 도메인 축 신규 #2 (설계 §2 1차 범위).
+ * landing-page 전시물 — 도메인 축 신규 #2.
  *
  * 제품 랜딩 페이지: 히어로·기능 그리드·CTA. 섹션 목록은 아티팩트 소유
  * (dashboard의 widget-list 교훈 일반화 — 시드가 capability 에 위젯 수를

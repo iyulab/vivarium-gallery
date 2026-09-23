@@ -1,9 +1,9 @@
 /**
- * Sample-local KnowledgeSource for the dashboard-builder (mission M6).
+ * Sample-local KnowledgeSource for the dashboard exhibit.
  *
  * First consumer exercise of the published `@vivariumjs/agent` knowledge
- * port (fixed principle 4: knowledge is pluggable data, recorded in
- * provenance). Two documents are served on every query:
+ * port — knowledge is pluggable data, recorded in the proposal's
+ * provenance. Two documents are served on every query:
  *
  *   1. DATA CATALOG — which capabilities the sandbox grants and the exact
  *      shape they return. The shape example is derived from data.ts at

@@ -1,14 +1,14 @@
 /**
- * gallery host browser app — dashboard-builder app.ts 의 전시물-무관 이식본.
+ * gallery host browser app — 전시물-무관.
  * Consumes only `@vivariumjs/runtime` and `@vivariumjs/changeset` (import map —
- * registry install, no submodule source import: samples/README.md 규율 1) plus this host's own
+ * registry install, no submodule source import: README 규율 1) plus this host's own
  * HTTP surface (`/agent/*`, `/stage/*` proxy, `/exhibit` — server.ts).
  *
  * 전시물 결합은 런타임에만 일어난다: GET /exhibit 로 로드된 전시물 이름을
  * 받아 `/exhibits/<name>/exhibit.ts` 를 동적 import — 시드 아티팩트와
  * capability grant 목록이 그 모듈에서 온다 (exhibit-schema.ts 계약).
  *
- * Flow (dashboard-builder 이식과 동일):
+ * Flow:
  *   1. grant exhibit capabilities, mount a canvas + preview sandbox **per
  *      artifact** — a change that touches several screens has to be visible
  *      on several screens
@@ -505,7 +505,7 @@ async function sendChat(): Promise<void> {
       await sandbox.render(propose.preview[id] ?? liveArtifacts[id] ?? "export default function mount(){}");
     }
     // 결과(프리뷰) 옆에 **무엇이 왜 바뀌는가**를 함께 둔다 — changeset 이 이미 담고
-    // 있는 것을 렌더할 뿐이며, 승인은 이 화면을 보고 내리는 판단이다 (T3).
+    // 있는 것을 렌더할 뿐이며, 승인은 이 화면을 보고 내리는 판단이다.
     renderChangesetReview(reviewEl, pendingProposal!.changeset);
     setPendingUi(true);
     chatInput.value = "";

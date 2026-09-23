@@ -1,5 +1,5 @@
 /**
- * 시나리오 드라이버 (G3) — scenario.md 의 턴 시퀀스를 선언적 spec(JSON)으로
+ * 시나리오 드라이버 — scenario.md 의 턴 시퀀스를 선언적 spec(JSON)으로
  * 받아 호스트 HTTP 표면(UI 와 동일 API)을 구동한다: 시드 → 턴 루프
  * (턴1 /agent/session, 이후 /agent/refine + baseArtifacts 재기저) → 각 턴
  * 승인·apply → 마지막에 롤백 공통 게이트(rollback-gate.ts).
@@ -156,10 +156,10 @@ for (let i = 0; i < spec.turns.length; i++) {
   const p = turn.proposal.changeset.patches;
   const facetCounts = { schema: p.schema.length, data: p.data.length, ui: p.ui.length };
 
-  const approved = addApproval(turn.proposal.changeset, { approvedBy: "run-cycle-session", approvedAt: new Date().toISOString() });
+  const approved = addApproval(turn.proposal.changeset, { approvedBy: "scenario-runner", approvedAt: new Date().toISOString() });
   const propose = await http("POST", `/stage/targets/${TARGET}/changesets`, approved);
   const apply = await http("POST", `/stage/sessions/${propose.sessionId}/apply`, {
-    actor: "run-cycle-session",
+    actor: "scenario-runner",
     evidence: { observed: `${type} preview verified` },
   });
   if (apply.state !== "Applied") throw new Error(`turn${i + 1} apply failed: ${JSON.stringify(apply)}`);

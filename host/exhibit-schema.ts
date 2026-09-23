@@ -18,7 +18,7 @@ export interface ExhibitMeta {
   name: string;
   title: string;
   description: string;
-  /** 도메인 축 라벨 (설계 §2) — 예: "dashboard", "landing-page". */
+  /** 도메인 축 라벨 — 예: "dashboard", "landing-page". */
   domain: string;
 }
 

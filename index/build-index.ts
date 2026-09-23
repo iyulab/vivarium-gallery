@@ -1,5 +1,5 @@
 /**
- * 갤러리 정적 인덱스 생성기 (설계 §1) — exhibits/<name>/exhibit.ts(메타)와
+ * 갤러리 정적 인덱스 생성기 — exhibits/<name>/exhibit.ts(메타)와
  * exhibits/<name>/runs/(아카이브)를 스캔해 `index/gallery.html` 을 생성한다.
  * 산출물은 서버 없이(파일 직접 열람) 동작하는 전시 표면이다 — 각 run 의
  * final.html 이 자립형 뷰어이므로 인덱스도 정적 링크만 필요하다.
