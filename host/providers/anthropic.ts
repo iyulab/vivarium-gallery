@@ -17,7 +17,7 @@
 import type { ModelProvider, ModelRequest } from "@vivariumjs/agent";
 
 export interface AnthropicProviderOptions {
-  /** Model ID. Default: claude-opus-5. */
+  /** Model ID. Default: claude-opus-5-5. */
   model?: string;
   /** API key. Default: process.env.ANTHROPIC_API_KEY. */
   apiKey?: string;
@@ -25,6 +25,13 @@ export interface AnthropicProviderOptions {
   maxTokens?: number;
   /** Per-call wall-clock timeout in milliseconds. */
   timeoutMs?: number;
+  /**
+   * Thinking depth and token spend (`output_config.effort`). Default: "high".
+   * Set explicitly because the model's own default is lower than the one the
+   * proposals here were first judged at, and changeset generation is the kind
+   * of task that loses quality when it thinks less.
+   */
+  effort?: "low" | "medium" | "high" | "xhigh" | "max";
   /**
    * Called with the API-reported token usage of each successful call
    * (Phase 6.e turn-cost instrumentation). Optional — the provider works
@@ -34,10 +41,11 @@ export interface AnthropicProviderOptions {
 }
 
 export function createAnthropicProvider(options: AnthropicProviderOptions = {}): ModelProvider {
-  const model = options.model ?? process.env.ANTHROPIC_MODEL ?? "claude-opus-5";
+  const model = options.model ?? process.env.ANTHROPIC_MODEL ?? "claude-opus-5-5";
   const apiKey = options.apiKey ?? process.env.ANTHROPIC_API_KEY;
   const maxTokens = options.maxTokens ?? 16000;
   const timeoutMs = options.timeoutMs ?? 300_000;
+  const effort = options.effort ?? "high";
   if (!apiKey) {
     throw new Error(
       "ANTHROPIC_API_KEY is not set — run the server with `node --env-file=.env.local ...` or export the key",
@@ -59,6 +67,7 @@ export function createAnthropicProvider(options: AnthropicProviderOptions = {}):
           model,
           max_tokens: maxTokens,
           thinking: { type: "adaptive" },
+          output_config: { effort },
           system: request.system,
           messages: [{ role: "user", content: request.user }],
         }),
