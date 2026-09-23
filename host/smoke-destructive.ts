@@ -21,15 +21,14 @@
  * 0.6.0 범프로 빨개진 뒤 ② 문법으로 뒤집혔다. 같은 방식으로 고정해 둔 자리가
  * 생기면 실패 메시지에 뒤집는 방법을 적는다.
  *
- * **단언 10 은 게시본 agent 의 결함을 고정한다.** 호스트가 라이브 스키마를 공급하자
- * agent 0.2.0 의 저작 시점 표적 검사가 처음 구동됐고, "필드를 지우고 그 값을 비우는"
- * 폐기 턴을 저작할 수 없다는 것이 드러났다 — 데이터 패치를 필드가 **이미 지워진**
- * 스키마에 대고 판정하기 때문이다(agent 0.2.1 소스에서 수정, 미게시). 그동안 ① 의
- * 폐기는 손으로 저작한 같은 모양의 changeset 이 무대에 올린다 — 롤백이 잃은 값을
- * 되돌리는가는 stage 의 판정이지 저작자의 것이 아니므로, 판정 대상은 바뀌지 않는다.
- * 10 은 **설치된 agent 버전으로 기대를 가른다**: 0.2.1 미만이면 소진(결함 고정), 이상이면
- * 에이전트가 같은 모양을 저작해야 한다(수정 확인). 0.2.1 을 소비하게 되면 단언 2 를 에이전트
- * 제안으로 되돌리고 10 의 0.2.0 갈래를 지운다.
+ * **단언 10 은 설치된 agent 가 폐기 턴을 저작하는지 본다** — "필드를 지우고 그 값을 비우는"
+ * 3-facet 턴. agent 0.2.0 은 데이터 패치를 필드가 이미 지워진 스키마에 대고 판정해 이 턴을
+ * 저작하지 못했고(0.2.1 에서 수정), 그동안 단언 2 는 손 저작 changeset 이 대신 섰다 —
+ * 지금은 에이전트가 저작한 문서가 선다.
+ *
+ * **단언 2 는 지운 필드의 키가 행에 남지 않음까지 본다.** 스펙 §5.4 이후 제거는 그 아래
+ * 저장된 값을 가져간다(Vivarium.Stage 0.8.0). 그 전의 게시본은 `null` 로 비워진 키를 남겼고,
+ * 참거짓 검사는 그것을 "값이 없다"로 읽어 통과시켰다.
  *
  * Prerequisite: stage-host (8891) + host/server.ts (8890, **--exhibit contacts**,
  * MODEL_PROVIDER 미설정 — 결정성은 scripted provider 에 의존).
@@ -57,7 +56,7 @@ const ABSENT_ENTITY = "NoSuchEntity";
 const TOTAL = 10;
 const FACET_KEYS = ["schema", "data", ARTIFACT_ID];
 const DESC_2 =
-  "① 에이전트가 저작한 폐기 changeset 이 스키마·데이터·UI 세 곳에서 **함께 지운다** — 승인 하나·flip 하나";
+  "① 에이전트가 저작한 폐기 changeset 이 스키마·데이터·UI 세 곳에서 **함께 지운다**(행에 키도 남지 않는다) — 승인 하나·flip 하나";
 /**
  * 단언 10 이 판정하는 것은 **설치된** agent 다 — 버전을 이름에 실어, 실패가 어느 게시본의
  * 것인지 로그만 보고 알 수 있게 한다.
@@ -210,9 +209,10 @@ async function main(): Promise<void> {
     if (live.schema.entities[ENTITY].fields[RETIRED_FIELD]) {
       throw new Error("스키마에 필드가 남아 있다");
     }
-    const stillValued = (live.data[ENTITY] as any[]).filter((r) => r[RETIRED_FIELD]);
-    if (stillValued.length !== 0) {
-      throw new Error(`행에 값이 남아 있다 — ${JSON.stringify(stillValued)}`);
+    // 값이 아니라 **키**를 본다 — `null` 로 비워진 채 남은 키는 스키마가 선언하지 않는 멤버다(§5.4).
+    const stillKeyed = (live.data[ENTITY] as any[]).filter((r) => Object.hasOwn(r, RETIRED_FIELD));
+    if (stillKeyed.length !== 0) {
+      throw new Error(`지운 필드의 키가 행에 남아 있다 — ${JSON.stringify(stillKeyed)}`);
     }
     if (live.artifacts[ARTIFACT_ID].includes(COLUMN_WITH_FAX)) {
       throw new Error("표에 열이 남아 있다");
