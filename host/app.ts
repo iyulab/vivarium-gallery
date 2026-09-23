@@ -1,7 +1,7 @@
 /**
  * gallery host browser app — dashboard-builder app.ts 의 전시물-무관 이식본.
- * Consumes only `@vivariumjs/runtime` (import map — registry install, no
- * submodule source import: samples/README.md 규율 1) plus this host's own
+ * Consumes only `@vivariumjs/runtime` and `@vivariumjs/changeset` (import map —
+ * registry install, no submodule source import: samples/README.md 규율 1) plus this host's own
  * HTTP surface (`/agent/*`, `/stage/*` proxy, `/exhibit` — server.ts).
  *
  * 전시물 결합은 런타임에만 일어난다: GET /exhibit 로 로드된 전시물 이름을
@@ -28,6 +28,7 @@
  */
 import { mountSandbox, CapabilityRegistry, RpcError, STALE_ELEMENT_REFERENCE } from "@vivariumjs/runtime";
 import type { ElementDescriptor, EditContext } from "@vivariumjs/runtime";
+import { addApproval } from "@vivariumjs/changeset";
 import type { ExhibitDefinition } from "./exhibit-schema.ts";
 import { renderChangesetReview } from "./review.ts";
 
@@ -559,17 +560,13 @@ approveBtn.addEventListener("click", () => {
     rejectBtn.disabled = true;
     try {
       setStatus("승인 처리 중…");
-      // TODO(upstream): written by hand only because @vivariumjs/changeset 0.5.0 does not
-      // load in a browser (it imports node:crypto). Switch to addApproval, as the smoke
-      // scripts do, once a browser-loadable release is consumed here.
-      const approved = structuredClone(pendingProposal.changeset);
-      approved.approvals = [
-        {
-          fingerprint: pendingProposal.fingerprint,
-          approvedBy: "gallery-ui",
-          approvedAt: new Date().toISOString(),
-        },
-      ];
+      // The record's fingerprint is derived from the document itself, and addApproval
+      // refuses a document whose contents no longer match it — so what is approved
+      // is exactly what the review screen showed.
+      const approved = addApproval(pendingProposal.changeset, {
+        approvedBy: "gallery-ui",
+        approvedAt: new Date().toISOString(),
+      });
       const propose = await post(`/stage/targets/${target}/changesets`, approved);
       const apply = await post(`/stage/sessions/${propose.sessionId}/apply`, {
         actor: "gallery-ui",

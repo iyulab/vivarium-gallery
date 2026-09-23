@@ -12,8 +12,8 @@
     "node": ">=23"
   },
   "dependencies": {
-    "@vivariumjs/agent": "^0.3.0",
-    "@vivariumjs/changeset": "^0.5.0",
+    "@vivariumjs/agent": "^0.3.1",
+    "@vivariumjs/changeset": "^0.5.1",
     "@vivariumjs/runtime": "^0.6.0"
   },
   "devDependencies": {
