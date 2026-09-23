@@ -40,7 +40,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { addSchemaOp, createChangeset, finalize } from "@vivariumjs/changeset";
+import { addApproval, addSchemaOp, createChangeset, finalize } from "@vivariumjs/changeset";
 import exhibit from "../exhibits/contacts/exhibit.ts";
 import { COLUMN_WITH_FAX, RETIRED_FIELD } from "../exhibits/contacts/scripted.ts";
 import { checkRender, renderFor } from "./tools/render-check.ts";
@@ -112,13 +112,9 @@ async function seed(): Promise<void> {
     data: exhibit.data,
   });
 }
-/** 승인 결합 — 정확한 fingerprint 에만 묶인다. */
-function approve(changeset: any, fingerprint: string): any {
-  const approved = structuredClone(changeset);
-  approved.approvals = [
-    { fingerprint, approvedBy: "smoke-destructive-reviewer", approvedAt: new Date().toISOString() },
-  ];
-  return approved;
+/** 승인 결합 — 정확한 fingerprint 에만 묶인다(`addApproval` 이 문서 자신의 것을 쓴다). */
+function approve(changeset: any): any {
+  return addApproval(changeset, { approvedBy: "smoke-destructive-reviewer", approvedAt: new Date().toISOString() });
 }
 /**
  * 손으로 저작한 단일 스키마 연산 changeset.
@@ -138,7 +134,7 @@ function handAuthored(intent: string, op: Record<string, unknown>): any {
       op,
     ),
   );
-  return approve(cs, cs.fingerprint);
+  return approve(cs);
 }
 
 async function main(): Promise<void> {
@@ -196,7 +192,7 @@ async function main(): Promise<void> {
     if (!patches.schema.some((op: any) => op.op === "field.remove" && op.field === RETIRED_FIELD)) {
       throw new Error(`스키마 연산에 ${RETIRED_FIELD} 의 field.remove 가 없다 — ${JSON.stringify(patches.schema.map((o: any) => o.op))}`);
     }
-    approvedChangeset = approve(proposal.changeset, proposal.fingerprint);
+    approvedChangeset = approve(proposal.changeset);
     const propose = await post(`/stage/targets/${TARGET}/changesets`, approvedChangeset);
     appliedSessionId = propose.sessionId;
     const applied = await post(`/stage/sessions/${appliedSessionId}/apply`, {

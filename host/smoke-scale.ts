@@ -25,7 +25,7 @@
  */
 
 import { JSDOM } from "jsdom";
-import { createUnifiedDiff } from "@vivariumjs/changeset";
+import { addApproval, createUnifiedDiff } from "@vivariumjs/changeset";
 import exhibit from "../exhibits/ops-console/exhibit.ts";
 import { CARD_ADDED, CARD_ANCHOR } from "../exhibits/ops-console/scripted.ts";
 import { renderChangesetReview } from "./review.ts";
@@ -387,14 +387,7 @@ async function main(): Promise<void> {
       throw new Error(`no proposal — outcome=${JSON.stringify(turn.outcome?.status)}`);
     }
 
-    const approved = structuredClone(turn.proposal.changeset);
-    approved.approvals = [
-      {
-        fingerprint: turn.proposal.fingerprint,
-        approvedBy: "smoke-scale-reviewer",
-        approvedAt: new Date().toISOString(),
-      },
-    ];
+    const approved = addApproval(turn.proposal.changeset, { approvedBy: "smoke-scale-reviewer", approvedAt: new Date().toISOString() });
     const proposed = await post(`/stage/targets/${TARGET}/changesets`, approved);
     const preview = String(proposed.preview?.[ARTIFACT_ID] ?? "");
     if (!preview.includes(CARD_ADDED.trim())) {

@@ -22,6 +22,7 @@
  * Exit 0 + "smoke-3facet: 8/8 PASS" on success; exit 1 otherwise.
  */
 
+import { addApproval } from "@vivariumjs/changeset";
 import exhibit from "../exhibits/inventory/exhibit.ts";
 import { COLUMN_ADDED, RESTOCK_DUE } from "../exhibits/inventory/scripted.ts";
 import { runRollbackGate } from "./tools/rollback-gate.ts";
@@ -187,10 +188,7 @@ async function main(): Promise<void> {
   let approvedChangeset: any;
   let appliedSessionId = "";
   try {
-    approvedChangeset = structuredClone(proposal.changeset);
-    approvedChangeset.approvals = [
-      { fingerprint: proposal.fingerprint, approvedBy: "smoke-3facet-reviewer", approvedAt: new Date().toISOString() },
-    ];
+    approvedChangeset = addApproval(proposal.changeset, { approvedBy: "smoke-3facet-reviewer", approvedAt: new Date().toISOString() });
     const propose = await post(`/stage/targets/${TARGET}/changesets`, approvedChangeset);
     const apply = await post(`/stage/sessions/${propose.sessionId}/apply`, {
       actor: "smoke-3facet",

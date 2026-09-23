@@ -32,7 +32,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { artifactFingerprint } from "@vivariumjs/changeset";
+import { addApproval, artifactFingerprint } from "@vivariumjs/changeset";
 import exhibit from "../exhibits/dashboard/exhibit.ts";
 import { runRollbackGate } from "./tools/rollback-gate.ts";
 import { renderFor, undeclaredArtifacts } from "./tools/render-check.ts";
@@ -220,10 +220,7 @@ async function main(): Promise<void> {
   n = 5;
   let approvedSessionId: string;
   try {
-    const approved = structuredClone(proposal.changeset);
-    approved.approvals = [
-      { fingerprint: proposal.fingerprint, approvedBy: "smoke-reviewer", approvedAt: new Date().toISOString() },
-    ];
+    const approved = addApproval(proposal.changeset, { approvedBy: "smoke-reviewer", approvedAt: new Date().toISOString() });
     const propose = await post(`/stage/targets/${TARGET}/changesets`, approved);
     const apply = await post(`/stage/sessions/${propose.sessionId}/apply`, {
       actor: "smoke",
@@ -321,10 +318,7 @@ async function main(): Promise<void> {
     skip(n, "미적용 draft 체인의 최종 refine이 apply 성공");
   } else {
     try {
-      const approved = structuredClone(refined.changeset);
-      approved.approvals = [
-        { fingerprint: refined.fingerprint, approvedBy: "smoke-reviewer", approvedAt: new Date().toISOString() },
-      ];
+      const approved = addApproval(refined.changeset, { approvedBy: "smoke-reviewer", approvedAt: new Date().toISOString() });
       const propose = await post(`/stage/targets/${TARGET}/changesets`, approved);
       const apply = await post(`/stage/sessions/${propose.sessionId}/apply`, {
         actor: "smoke",
@@ -418,10 +412,7 @@ async function main(): Promise<void> {
   try {
     // 시드 상태(단언 10 정리 후)에서 턴-1 changeset을 승인·적용해 게이트의
     // 전제(마지막 apply 존재)를 만든다.
-    const approved = structuredClone(proposal.changeset);
-    approved.approvals = [
-      { fingerprint: proposal.fingerprint, approvedBy: "smoke-reviewer", approvedAt: new Date().toISOString() },
-    ];
+    const approved = addApproval(proposal.changeset, { approvedBy: "smoke-reviewer", approvedAt: new Date().toISOString() });
     const propose = await post(`/stage/targets/${TARGET}/changesets`, approved);
     const apply = await post(`/stage/sessions/${propose.sessionId}/apply`, {
       actor: "smoke",

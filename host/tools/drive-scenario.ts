@@ -30,6 +30,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join, normalize } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { addApproval } from "@vivariumjs/changeset";
 import type { ExhibitDefinition } from "../exhibit-schema.ts";
 import type { FilledExpectation, InteractionStep } from "./render-check.ts";
 import { runRollbackGate } from "./rollback-gate.ts";
@@ -155,10 +156,7 @@ for (let i = 0; i < spec.turns.length; i++) {
   const p = turn.proposal.changeset.patches;
   const facetCounts = { schema: p.schema.length, data: p.data.length, ui: p.ui.length };
 
-  const approved = structuredClone(turn.proposal.changeset);
-  approved.approvals = [
-    { fingerprint: turn.proposal.fingerprint, approvedBy: "run-cycle-session", approvedAt: new Date().toISOString() },
-  ];
+  const approved = addApproval(turn.proposal.changeset, { approvedBy: "run-cycle-session", approvedAt: new Date().toISOString() });
   const propose = await http("POST", `/stage/targets/${TARGET}/changesets`, approved);
   const apply = await http("POST", `/stage/sessions/${propose.sessionId}/apply`, {
     actor: "run-cycle-session",

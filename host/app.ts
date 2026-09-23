@@ -559,6 +559,9 @@ approveBtn.addEventListener("click", () => {
     rejectBtn.disabled = true;
     try {
       setStatus("승인 처리 중…");
+      // TODO(upstream): written by hand only because @vivariumjs/changeset 0.5.0 does not
+      // load in a browser (it imports node:crypto). Switch to addApproval, as the smoke
+      // scripts do, once a browser-loadable release is consumed here.
       const approved = structuredClone(pendingProposal.changeset);
       approved.approvals = [
         {

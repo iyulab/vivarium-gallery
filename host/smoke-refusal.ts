@@ -34,7 +34,7 @@
  * Exit 0 + "smoke-refusal: 9/9 PASS" on success; exit 1 otherwise.
  */
 
-import { addDataPatch, addSchemaOp, createChangeset, finalize } from "@vivariumjs/changeset";
+import { addApproval, addDataPatch, addSchemaOp, createChangeset, finalize } from "@vivariumjs/changeset";
 import exhibit from "../exhibits/inventory/exhibit.ts";
 
 const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:8890";
@@ -74,13 +74,9 @@ async function post(path: string, body: unknown): Promise<any> {
 async function world(): Promise<any> {
   return (await fetch(`${BASE}/stage/targets/${TARGET}/artifacts`)).json();
 }
-/** 승인 결합 — 정확한 fingerprint 에만 묶인다. */
-function approve(changeset: any, fingerprint: string): any {
-  const approved = structuredClone(changeset);
-  approved.approvals = [
-    { fingerprint, approvedBy: "smoke-refusal-reviewer", approvedAt: new Date().toISOString() },
-  ];
-  return approved;
+/** 승인 결합 — 정확한 fingerprint 에만 묶인다(`addApproval` 이 문서 자신의 것을 쓴다). */
+function approve(changeset: any): any {
+  return addApproval(changeset, { approvedBy: "smoke-refusal-reviewer", approvedAt: new Date().toISOString() });
 }
 
 async function main(): Promise<void> {
@@ -98,7 +94,7 @@ async function main(): Promise<void> {
   });
   const proposal = turn.proposal;
   if (!proposal) throw new Error(`no proposal — ${JSON.stringify(turn.outcome)}`);
-  const approved = approve(proposal.changeset, proposal.fingerprint);
+  const approved = approve(proposal.changeset);
 
   // ── 1. 미승인 거부 — 승인 게이트 ────────────────────────────────────────
   let n = 1;
@@ -209,7 +205,7 @@ async function main(): Promise<void> {
     const dataOnly: any = finalize(draft);
     const propose = await post(
       `/stage/targets/${TARGET}/changesets`,
-      approve(dataOnly, dataOnly.fingerprint),
+      approve(dataOnly),
     );
     const apply = await post(`/stage/sessions/${propose.sessionId}/apply`, {
       actor: "data-steward",
@@ -283,7 +279,7 @@ async function main(): Promise<void> {
     );
     const { status, json } = await raw(
       `/stage/targets/${TARGET}/changesets`,
-      approve(absent, absent.fingerprint),
+      approve(absent),
     );
     if (status !== 422 || json.reason !== "AdapterRefused") {
       throw new Error(`expected 422 AdapterRefused, got ${status}: ${JSON.stringify(json)}`);
@@ -351,7 +347,7 @@ async function main(): Promise<void> {
         },
       ),
     );
-    const approvedGhost = approve(ghost, ghost.fingerprint);
+    const approvedGhost = approve(ghost);
     const { status, json } = await raw(`/stage/targets/${TARGET}/changesets`, approvedGhost);
     if (status !== 422 || json.reason !== "AdapterRefused") {
       throw new Error(`expected 422 AdapterRefused, got ${status}: ${JSON.stringify(json)}`);

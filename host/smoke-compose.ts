@@ -25,6 +25,7 @@
  * Exit 0 + "smoke-compose: 6/6 PASS" on success; exit 1 otherwise.
  */
 
+import { addApproval } from "@vivariumjs/changeset";
 import exhibit from "../exhibits/storefront/exhibit.ts";
 import { NOTE_TEXT } from "../exhibits/storefront/scripted.ts";
 import { checkRender, renderFor, undeclaredArtifacts } from "./tools/render-check.ts";
@@ -127,10 +128,7 @@ async function main(): Promise<void> {
   n = 3;
   let sessionId = "";
   try {
-    const approved = structuredClone(proposal.changeset);
-    approved.approvals = [
-      { fingerprint: proposal.fingerprint, approvedBy: "smoke-compose-reviewer", approvedAt: new Date().toISOString() },
-    ];
+    const approved = addApproval(proposal.changeset, { approvedBy: "smoke-compose-reviewer", approvedAt: new Date().toISOString() });
     const proposed = await post(`/stage/targets/${TARGET}/changesets`, approved);
     sessionId = proposed.sessionId;
     const previewed = Object.keys(proposed.preview ?? {});
