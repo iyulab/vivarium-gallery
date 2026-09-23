@@ -3,8 +3,8 @@
  *
  * Every gate here judges host JSON. That is most of the contract and none of the
  * screen: a proposal can be applied, the ledger can be right, and the canvas can be
- * blank. Sessions have checked the screen by hand (cycle-175, cycle-184) and once
- * with a throwaway CDP script (cycle-193), which produced 44/51 on a harness that
+ * blank. Sessions have checked the screen by hand and once with a throwaway CDP
+ * script, which produced 44/51 on a harness that
  * scores 51/51 elsewhere — the failures were the driver's, not the code's. A
  * judgment that moves with whoever wrote this session's driver is not a judgment,
  * so there is one driver and it lives here.

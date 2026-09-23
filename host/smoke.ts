@@ -15,7 +15,7 @@
  * 설계 §3)의 4단계 판정을 scripted provider로 결정적으로 검증한다.
  *
  * 단언 13은 갤러리 정적 인덱스(index/build-index.ts) 생성을, 단언 14는
- * 렌더 검증(tools/render-check.ts — cycle-85 갭 후속)을 검증한다. 단언 15는
+ * 렌더 검증(tools/render-check.ts — validated 여도 빈 렌더를 잡는다)을 검증한다. 단언 15는
  * 그 생성이 워킹트리를 더럽히지 않는다는 README 의 약속을 판정한다 — 13이
  * 보는 것은 생성기의 결정성이고, 커밋본과의 일치는 그 밖에 있다. 단언 16은
  * 렌더 판정이 **마운트 이후**까지 가는지를 본다. 단언 17은 총량 하한이 값 실종을
@@ -502,7 +502,7 @@ async function main(): Promise<void> {
     }
     const good = await checkRender(SEED_CONTENT, exhibit.capabilities, declared);
     if (!good.ok) throw new Error(`seed must pass render check — ${good.errors.join(" | ")}`);
-    // cycle-85 감지 사례: 기대 capability(dataset)가 invoke 되지 않으면 FAIL.
+    // 감지 대상(잘못된 capability 호출 → 빈 대시보드): 기대 capability(dataset)가 invoke 되지 않으면 FAIL.
     // 대조군은 **일부러 틀린 이름**을 준다 — 이것까지 선언에서 읽으면 이 단언이
     // 아무것도 구별하지 않는다.
     const wrongInvoke = await checkRender(SEED_CONTENT, exhibit.capabilities, { expectInvokes: ["dashboard.dataset"] });
@@ -513,9 +513,9 @@ async function main(): Promise<void> {
     if (broken.ok || !broken.errors.some((e) => e.includes("mount threw"))) {
       throw new Error(`throwing artifact must fail — got ${JSON.stringify(broken)}`);
     }
-    ok(n, "render-check — 정상 시드 통과, 기대-invoke 불일치·mount 예외는 FAIL (cycle-85 갭 감지)");
+    ok(n, "render-check — 정상 시드 통과, 기대-invoke 불일치·mount 예외는 FAIL (잘못된 capability 호출 감지)");
   } catch (err) {
-    fail(n, "render-check — 정상 시드 통과, 기대-invoke 불일치·mount 예외는 FAIL (cycle-85 갭 감지)", err);
+    fail(n, "render-check — 정상 시드 통과, 기대-invoke 불일치·mount 예외는 FAIL (잘못된 capability 호출 감지)", err);
   }
 
   // ── 15. 게이트가 워킹트리를 더럽히지 않는다 (커밋본 == 생성물) ──────────
@@ -766,9 +766,9 @@ async function main(): Promise<void> {
   // ── 19. 덮이지 않은 화면을 **센다** ──────────────────────────────────────
   // 사각은 여기 있었다: 단언 18 은 전 전시물을 훑지만 **primary 만** 본다. 화면이
   // 여럿인 전시물에서 둘째를 선언하지 않으면 그 화면은 총량 판정으로 돌아가고,
-  // 통째로 죽어도 아무도 말하지 않는다(cycle-169 가 storefront 에서 실물로 봤다).
+  // 통째로 죽어도 아무도 말하지 않는다(storefront 에서 실제로 확인됐다).
   //
-  // 판정선은 cycle-173 이 세운 것을 그대로 쓴다: **선언이 없는 화면은 실패가 아니라
+  // 판정선: **선언이 없는 화면은 실패가 아니라
   // 집계 대상**이다 — 화면을 더하는 일이 게이트를 빨갛게 만들면 아무도 더하지 않는다.
   // 그러나 **이미 선언한 전시물이 화면을 더하고 선언을 빠뜨린 것**은 다르다. 그것은
   // 옵트인하지 않은 것이 아니라 **빠뜨린 것**이고, 사각이 자라는 유일한 경로다.

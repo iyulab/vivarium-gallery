@@ -55,7 +55,7 @@ prefer dashboard.dataset for anything new.`;
 
 const DESIGN_SYSTEM = `DESIGN SYSTEM — house rules for this dashboard's generated UI (light mode).
 
-Language (FRICTION-20260718-label-language-follows-instruction)
+Language
 - ALL dashboard copy — widget titles, axis labels, table headers, captions,
   footers — is in English, regardless of the language the user's instruction
   is written in. The conversation language never leaks into UI text.

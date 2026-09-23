@@ -64,7 +64,7 @@ function errorMessage(err: unknown): string {
 /**
  * 실패를 **거부와 오류로 갈라** 보여준다.
  *
- * 정당한 거부를 "오류"라 부르는 것은 cycle-158 이 스택에서 닫은 결함의 **한 층 위**다.
+ * 정당한 거부를 "오류"라 부르면, 스택이 이미 갈라 둔 거부(422)와 결함(5xx)을 **화면에서** 다시 섞는다.
  * 거부는 제품이 일하고 있다는 신호이고 다음 행동이 있다(문서를 고친다); 오류는
  * 무언가 깨졌다는 신호이고 다음 행동이 다르다(신고한다). 같은 빨강으로 보이면
  * 사람은 그 둘을 구별할 수 없고, 구별하지 못하면 거부를 결함으로 읽는다.
@@ -88,8 +88,8 @@ function showFailure(where: string, err: unknown): void {
  *
  * 예전에는 `HTTP nnn: {…}` 한 줄을 던졌고, 그러면 호출부가 거부와 오류를 구별하려면
  * 자기가 만든 문자열을 되파싱해야 한다. 그 층은 이미 갈려 있다 —
- * cycle-158 이 어댑터 층 거부를 **422 + `reason`** 으로, 진짜 결함을 **5xx** 로
- * 갈랐고 `smoke-refusal` 7·8 이 그 경계를 고정한다. 앱이 그것을 **읽지 못했을 뿐**이다.
+ * 호스트는 어댑터 층 거부를 **422 + `reason`** 으로, 진짜 결함을 **5xx** 로
+ * 가르고 `smoke-refusal` 7·8 이 그 경계를 고정한다. 앱이 그것을 **읽지 못했을 뿐**이다.
  */
 class HttpFailure extends Error {
   readonly status: number;
@@ -217,7 +217,7 @@ async function refreshLedger(): Promise<void> {
  * 예전에는 페이지를 열 때마다 무조건 재시드했다. *"매 방문이 선언된 상태에서
  * 시작한다"* 는 성질은 앱이 원하는 것이지만, 적용된 변경이 있으면 그것을 **파괴한다** —
  * CLI 로 구동한 run 을 여기서 볼 수 없고, **보러 가는 행위가 볼 것을 없앤다.**
- * 실측(cycle-174): 적용 뒤 1148B 였던 아티팩트가 새로고침 뒤 1109B(시드)로 돌아갔고,
+ * 실측: 적용 뒤 1148B 였던 아티팩트가 새로고침 뒤 1109B(시드)로 돌아갔고,
  * **원장에는 apply 기록이 그대로 남아** 월드와 원장이 어긋난 상태가 됐다.
  *
  * 그래서 조건은 *"살아 있는 세계가 시드와 같은가"* 다. 같으면 재시드는 무의미하고,
@@ -286,7 +286,7 @@ function clearSelection(): void {
   updateSelectionInfo();
 }
 
-// FRICTION-20260718-selection-cannot-be-cleared: once an element is clicked
+// Selection must be clearable: once an element is clicked
 // there was no way back to "no selection". The runtime sends selection
 // events only (no visual state), so clearing the app's own list is the fix.
 clearSelectionBtn.addEventListener("click", clearSelection);

@@ -26,7 +26,7 @@
 - `rollback.json` — 게이트 기록
 - `screenshot.png` — 실행 주체가 캡처 (없으면 미캡처)
 
-## 관찰 (실행 주체 주석 — cycle-85)
+## 관찰 (실행 주체 주석)
 
 - **시나리오 판정: 완주** — 4턴 attempts=1 validated·판정 통과(q2 삭제·
   전원 필수·i18n id/type 불변·렌더 정상 — 스크린샷). 게이트 4단계 PASS.

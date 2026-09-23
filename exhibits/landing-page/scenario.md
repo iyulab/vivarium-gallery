@@ -19,15 +19,15 @@
 2. 턴 4 apply 후 게이트: 체크포인트 = 턴 3 apply 직후 상태.
 3. `runs/<yyyymmdd>-<model>/` 아카이브 (archive-run.ts — 스크린샷은 `--screenshot` 필수 입력).
 
-## 세션 축 변형 (G4 — 알면서 실측: **실측 완료, cycle-84**)
+## 세션 축 변형 (G4 — 알면서 실측: **실측 완료**)
 
 계보 확립(2턴) 후 서버 재시작 → `/agent/refine` 재개 시도. 실측 결과:
 세션 소실(history 0)·refine 500·stage 상태는 생존·새 세션 복구 시 계보
 단절 — 게시본 ProposalSession 에 재수화 API 부재로 앱 측 해결 불가,
 보류(실측 수요 기록). 이 실측은 상류의 세션 재수화 원칙으로 이어졌다.
 
-## 판정 공통 규칙 (cycle-84 명문화)
+## 판정 공통 규칙
 
 턴 판정은 구조 기준에 더해 **지식 규칙 준수**를 포함한다 — capability 에
 없는 데이터/카피의 날조가 관찰되면 해당 턴은 판정 실패로 기록한다
-(FRICTION-20260719-knowledge-rule-enforcement-is-model-dependent 후속).
+(지식 규칙 준수는 모델에 따라 달라서 구조 판정만으로는 잡히지 않는다).

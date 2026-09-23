@@ -13,8 +13,8 @@ import { createDashboardScriptProvider } from "./scripted.ts";
 
 /**
  * Plain-JS generated-code contract (vivarium/docs/getting-started.md §1):
- * artifacts default-export `mount(root, api)`. Widget-list design
- * (FRICTION-20260717-seed-capability-binds-widget-count fix): the widgets
+ * artifacts default-export `mount(root, api)`. Widget-list design (a seed
+ * whose capability fixes the widget count leaves no way to add one): the widgets
  * array is OWNED BY THE ARTIFACT — capability-backed entries read from the
  * invoke result, new entries may carry inline data.
  */

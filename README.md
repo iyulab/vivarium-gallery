@@ -161,7 +161,7 @@ node host/tools/verify-consumption.ts
   no-proposal/no-op 은 중단이 아니라 기록 — 완주 판정은 RUN.md 에서.
 - `host/tools/render-check.ts` — jsdom 실렌더 판정(무예외·비어있지 않음·
   **기대 capability invoke 여부**). validated 여도 기능 파손인 렌더
-  (cycle-85: 잘못된 capability 호출 → 빈 대시보드)를 감지. 드라이버
+  (잘못된 capability 를 호출해 대시보드가 빈 채로 그려지는 경우)를 감지. 드라이버
   spec 에 `renderCheck: true` + 턴별 `expectInvokes` 로 활성화.
   - **마운트 이후도 본다** — 위 넷은 전부 마운트 시점의 성질이라, 화면은
     그려지지만 눌러도 아무 일도 일어나지 않는 UI 가 전부 통과한다. 턴별

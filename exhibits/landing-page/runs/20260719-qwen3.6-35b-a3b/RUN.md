@@ -26,7 +26,7 @@
 - `rollback.json` — 게이트 기록
 - `screenshot.png` — 실행 주체가 캡처 (없으면 미캡처)
 
-## 관찰 (실행 주체 주석 — cycle-83)
+## 관찰 (실행 주체 주석)
 
 - **시나리오 판정: 완주(구조 기준)** — 4턴 전부 attempts=1 validated·구조
   판정 통과: build(FAQ 추가) · surgical(**changedLines=1**, no-op 미발생)
@@ -34,5 +34,5 @@
   게이트 4단계 PASS. 턴 지연 107.9~187.0s — 동일 시나리오 opus run
   (22.9~32.9s) 대비 4~6배 (로컬 ~57 tok/s 처리량 한계와 일관).
 - **지식 규칙 위반 관찰 1건**: FAQ 답변에 존재하지 않는 제품 주장
-  ("$29/month" 등)을 날조 — 동일 조건에서 opus 는 준수(공란). 갭 기록:
-  `claudedocs/dogfooding/friction/FRICTION-20260719-knowledge-rule-enforcement-is-model-dependent.md`.
+  ("$29/month" 등)을 날조 — 동일 조건에서 opus 는 준수(공란). 지식 규칙
+  준수가 모델에 따라 갈린다.

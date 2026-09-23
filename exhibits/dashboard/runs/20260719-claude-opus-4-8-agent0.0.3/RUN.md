@@ -35,5 +35,5 @@
     소비 경로 해소 실증.
   - 턴 3 bulk(268줄 재생성)가 턴 2의 한국어 제목을 **보존** — whole-artifact
     재생성에서 무관 변경 보존 확인.
-  - 렌더 검증 3/3 ok (dashboard.dataset invoke — cycle-85 재발 없음).
+  - 렌더 검증 3/3 ok (dashboard.dataset invoke — 잘못된 capability 호출로 빈 대시보드가 되는 결함 재발 없음).
   - 롤백 공통 게이트 4단계 PASS.

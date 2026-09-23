@@ -35,7 +35,7 @@ const TOTAL = 8;
 /**
  * facet fingerprint 의 키. 참조 어댑터는 schema·data 는 facet 이름으로,
  * UI 는 **아티팩트 id 하나당 하나**로 낸다 — fidelity 매니페스트가 쓰는
- * `"ui"` 키는 fingerprint 쪽에 존재하지 않는다(어휘 비대칭, cycle-117 이슈).
+ * `"ui"` 키는 fingerprint 쪽에 존재하지 않는다(두 표면의 어휘 비대칭).
  */
 const FACET_KEYS = ["schema", "data", ARTIFACT_ID];
 

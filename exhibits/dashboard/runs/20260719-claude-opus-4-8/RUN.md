@@ -26,12 +26,11 @@
 - `rollback.json` — 게이트 기록
 - `screenshot.png` — 실행 주체가 캡처 (없으면 미캡처)
 
-## 관찰 (실행 주체 주석 — cycle-81)
+## 관찰 (실행 주체 주석)
 
 - **시나리오 판정: 미완주** — 턴 2·4(`surgical`, M7 동일 지시)가 **validated
   no-op** (changedLines=0, 2/2 재현). 게시본 agent 0.0.2에는 no-op 게이트가
-  없다 — 근본 수정은 0.0.3(미게시, 원장 ⑥). friction:
-  `claudedocs/dogfooding/friction/FRICTION-20260719-noop-reproduces-on-published-agent.md`.
+  없다 — 근본 수정은 0.0.3(미게시, 원장 ⑥).
 - 턴 1(build)·턴 3(bulk)은 판정 통과: build는 하우스 디자인 준수 대시보드
   1회 시도 구성, bulk는 KPI 전체 자릿수 전환(차트·표 보존 — compact 유지).
 - 롤백 공통 게이트 4단계 PASS — 제1 목적(적용·롤백 안정성) 축은 이 run

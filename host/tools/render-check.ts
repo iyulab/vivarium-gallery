@@ -1,13 +1,12 @@
 /**
- * 렌더 검증 (cycle-85 갭 후속 — FRICTION-20260719-wrong-capability-contract-
- * renders-empty): validated changeset 이라도 기능적으로 파손된 렌더(빈
+ * 렌더 검증: validated changeset 이라도 기능적으로 파손된 렌더(빈
  * 대시보드 등)를 apply 전후에 감지한다. 스키마 게이트가 못 보는 층위의
  * 앱-측 최소 판정.
  *
  * jsdom 으로 아티팩트 mount(root, api) 를 실제 실행하고 판정한다:
  *   1. 무예외 실행
  *   2. root 에 자식이 생겼는가 + 텍스트 총량 최소치
- *   3. (핵심) **기대 capability 가 실제 invoke 됐는가** — cycle-85 사례
+ *   3. (핵심) **기대 capability 가 실제 invoke 됐는가** — 잘못된 capability 호출
  *      (dataset 대신 legacy metrics 호출 → 전 필드 undefined → 빈 렌더)를
  *      정확히 잡는 검사. api 는 exhibit 의 실제 handler 결과를 공급하며
  *      호출 이름을 기록한다.

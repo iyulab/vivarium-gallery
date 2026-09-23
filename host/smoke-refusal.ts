@@ -180,7 +180,7 @@ async function main(): Promise<void> {
   try {
     if (!driftRefusal) throw new Error("no drift refusal captured (단언 2 실패)");
     // Vivarium.Stage 0.6.0 이전에는 구조 필드가 `reason` 하나뿐이었고 어긋난 사실은
-    // 산문 메시지 안에만 있었다(BD-01). 이제 호스트가 메시지를 파싱하지 않고
+    // 산문 메시지 안에만 있었다. 이제 호스트가 메시지를 파싱하지 않고
     // "무엇이 어긋났는지"를 보여 줄 수 있어야 한다.
     const details = driftRefusal.details;
     if (!details || details.scope !== "base-state" || !Array.isArray(details.drifted)) {
@@ -193,9 +193,9 @@ async function main(): Promise<void> {
       throw new Error(`기대·실제 지문이 구별되지 않는다: ${JSON.stringify(entry)}`);
     }
     assertReadable(driftRefusal, "어긋난 것", ARTIFACT_ID);
-    ok(n, "드리프트 거부가 어긋난 ref·기대·실제 지문을 **구조로** 나른다 — 산문 파싱 불필요 (BD-01 해소), 앱이 그것을 사람 말로 옮긴다");
+    ok(n, "드리프트 거부가 어긋난 ref·기대·실제 지문을 **구조로** 나른다 — 산문 파싱 불필요, 앱이 그것을 사람 말로 옮긴다");
   } catch (err) {
-    fail(n, "드리프트 거부가 어긋난 ref·기대·실제 지문을 **구조로** 나른다 — 산문 파싱 불필요 (BD-01 해소), 앱이 그것을 사람 말로 옮긴다", err);
+    fail(n, "드리프트 거부가 어긋난 ref·기대·실제 지문을 **구조로** 나른다 — 산문 파싱 불필요, 앱이 그것을 사람 말로 옮긴다", err);
   }
 
   // ── 4. 3-facet 제안이 세 facet 의 base 를 전부 선언한다 ──────────────────

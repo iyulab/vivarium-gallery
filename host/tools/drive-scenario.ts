@@ -6,7 +6,7 @@
  *
  * 판정 철학: no-proposal(exhausted)·no-op(changedLines=0)은 중단 사유가
  * 아니라 **기록 대상**이다 — 시나리오 완주 판정은 실행 주체가 RUN.md 에서
- * 내린다 (cycle-81 no-op 소비 재현이 선례). 종료 코드는 게이트 통과 여부.
+ * 내린다 (no-op 이 반복 재현되는 턴도 기록으로 남아야 판정할 수 있다). 종료 코드는 게이트 통과 여부.
  *
  * spec 형식:
  *   {
@@ -62,7 +62,7 @@ interface ScenarioSpec {
   turns: TurnSpec[];
   gateCheckpointTurn?: number;
   rollbackOut?: string;
-  /** 턴별 jsdom 렌더 검증 (render-check.ts — cycle-85 갭 후속). */
+  /** 턴별 jsdom 렌더 검증 (render-check.ts — validated 여도 빈 렌더를 잡는다). */
   renderCheck?: boolean;
 }
 

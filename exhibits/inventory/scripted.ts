@@ -61,7 +61,7 @@ function payload(): string {
         explanation: "기존 품목 행에 재입고 예정일을 채운다.",
         // spec §5.3: where 는 { field, equals } 다 — 키/값 맵이 아니다.
         // (첫 실행에서 이 형태를 틀리게 썼고, 검증기는 통과시켰으며, 어댑터가
-        //  NullReferenceException 으로 터졌다 — cycle-117 이 남긴 이슈 2건.)
+        //  NullReferenceException 으로 터졌다 — 검증기와 어댑터 양쪽의 결함이다.)
         operations: SEED_DATA.Item.map((row) => ({
           op: "update",
           entity: "Item",

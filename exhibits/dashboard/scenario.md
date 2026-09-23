@@ -25,11 +25,11 @@
 
 `host/smoke.ts` 14 단언(원본 11 동등성 + 롤백 게이트 + 인덱스 생성 +
 렌더 검증)이 이 전시물로 상시 회귀를 담당한다. 실모델 구동 시 턴 1 은
-`expectInvokes: ["dashboard.dataset"]` 렌더 검증을 켠다
-(FRICTION-20260719-wrong-capability-contract-renders-empty 후속).
+`expectInvokes: ["dashboard.dataset"]` 렌더 검증을 켠다 — 모델이 잘못된
+capability 를 호출하면 validated 여도 빈 대시보드가 그려지기 때문이다.
 
-## 판정 공통 규칙 (cycle-84 명문화)
+## 판정 공통 규칙
 
 턴 판정은 구조 기준에 더해 **지식 규칙 준수**를 포함한다 — capability 에
 없는 데이터/카피의 날조가 관찰되면 해당 턴은 판정 실패로 기록한다
-(FRICTION-20260719-knowledge-rule-enforcement-is-model-dependent 후속).
+(지식 규칙 준수는 모델에 따라 달라서 구조 판정만으로는 잡히지 않는다).

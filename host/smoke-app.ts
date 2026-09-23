@@ -3,9 +3,8 @@
  *
  * Every other gate here talks to the host over HTTP and reads JSON. That covers the
  * contract and misses the thing a consumer actually gets: a proposal can be applied,
- * the ledger can be correct, and the canvas can be blank. The HANDOFF has carried
- * `host/app.ts` as an uncovered surface since cycle-175 with the note "verified by
- * running it by hand" — this is that hand, written down.
+ * the ledger can be correct, and the canvas can be blank. `host/app.ts` used to be
+ * verified only by running it by hand — this is that hand, written down.
  *
  * What it drives is the loop a person walks: open the exhibit, ask for a change,
  * look at the review, approve, watch the screen change, roll it back — and then

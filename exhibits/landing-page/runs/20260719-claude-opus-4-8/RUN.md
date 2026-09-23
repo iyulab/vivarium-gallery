@@ -26,7 +26,7 @@
 - `rollback.json` — 게이트 기록
 - `screenshot.png` — 실행 주체가 캡처 (없으면 미캡처)
 
-## 관찰 (실행 주체 주석 — cycle-82)
+## 관찰 (실행 주체 주석)
 
 - **시나리오 판정: 완주** — 4턴 전부 첫 시도 validated·판정 통과: build
   (FAQ 41줄 추가) · surgical(**changedLines=1** — dashboard와 달리 no-op
@@ -37,5 +37,4 @@
   상관하는 정황(M7 관찰과 일관). diff 임계·⑥ 게시 논의의 실측 원료.
 - 추가 관찰: 턴 1의 FAQ 답변이 **의도적 공란** — capability 에 답변 카피가
   없어 모델이 날조-금지 지식 규칙을 지켰다(코드 주석 "Not fabricated").
-  규칙 준수는 정당하나 부분 이행이 제안 표면에 드러나지 않은 점은 DX 마찰:
-  `claudedocs/dogfooding/friction/FRICTION-20260719-silent-partial-compliance-on-knowledge-conflict.md`.
+  규칙 준수는 정당하나 부분 이행이 제안 표면에 드러나지 않은 점은 DX 마찰.

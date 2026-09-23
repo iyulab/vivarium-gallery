@@ -2,8 +2,8 @@
  * landing-page 전시물 — 도메인 축 신규 #2 (설계 §2 1차 범위).
  *
  * 제품 랜딩 페이지: 히어로·기능 그리드·CTA. 섹션 목록은 아티팩트 소유
- * (dashboard의 widget-list 교훈 일반화 — FRICTION-20260717-seed-capability-
- * binds-widget-count): capability 는 카피/데이터만 공급하고, 구조(섹션
+ * (dashboard의 widget-list 교훈 일반화 — 시드가 capability 에 위젯 수를
+ * 묶어 두면 위젯 추가가 막힌다): capability 는 카피/데이터만 공급하고, 구조(섹션
  * 수·순서)는 아티팩트가 소유해 순수 의도 지시("섹션 추가/순서 변경")가
  * 자연스러운 편집 경로를 갖는다. 시드 본문은 seed.ts (scripted.ts 와
  * 단일 출처 공유).

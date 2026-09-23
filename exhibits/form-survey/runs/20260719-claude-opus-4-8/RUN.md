@@ -26,7 +26,7 @@
 - `rollback.json` — 게이트 기록
 - `screenshot.png` — 실행 주체가 캡처 (없으면 미캡처)
 
-## 관찰 (실행 주체 주석 — cycle-83)
+## 관찰 (실행 주체 주석)
 
 - **시나리오 판정: 완주** — 4턴 전부 attempts=1 validated·판정 통과:
   build(이메일 q3 + NPS q4, id 규칙 준수) · delete(q2 만 제거) ·
