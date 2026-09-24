@@ -49,13 +49,19 @@
  *      published must resolve to a file the package actually carries, as
  *      `npm pack --dry-run` reports it. This one FAILS rather than warns: it
  *      describes the repository, not the registry, so it is fixable before the
- *      release rather than a fact already in a consumer's hands.
+ *      release rather than a fact already in a consumer's hands. Two more
+ *      claims of the same kind ride with it: a document path named in a
+ *      shipped declaration file (what an editor shows on hover) must be
+ *      shipped too or written as an absolute URL, and an API name the readme
+ *      lists in a table must be exported from the package entry.
  *   6. .NET consumption — the host half. Freshness and PUBLISH-LAG as in
  *      axis 1; the provenance of the local restore as in axis 2 (NuGet never
  *      re-fetches a version it has cached, so a build restored once from a
  *      local feed keeps being served under the published version number —
  *      the cache's own record of each package's source is what is read); and a
- *      clean-room restore from nuget.org alone as in axis 3.
+ *      clean-room restore from nuget.org alone as in axis 3; and, as in axis 5,
+ *      no document path in the shipped XML documentation that the package
+ *      does not carry.
  *
  * Zero dependencies; requires network access to registry.npmjs.org and
  * api.nuget.org, and the dotnet SDK for axis 6.
@@ -65,9 +71,9 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const STRICT = process.argv.includes("--strict");
@@ -389,6 +395,101 @@ for (const [name] of vivariumDeps) {
         `${unreachable.join(", ")}; a consumer reading the installed package follows them to nothing`,
     );
   }
+
+  // The declaration files are read more than the readme: an editor shows their
+  // comments on hover, and a tool or an agent reads them to learn the API. A
+  // document path written there has to be reachable from the installed package
+  // too — shipped, or written as an absolute URL.
+  const dangling: string[] = [];
+  for (const file of shipped.filter((f) => f.endsWith(".d.ts"))) {
+    const path = join(pkgDir, file);
+    if (!existsSync(path)) continue;
+    for (const ref of documentReferences(readFileSync(path, "utf8"))) {
+      const target = join(dirname(file), ref).replace(/\\/g, "/");
+      const fromRoot = ref.replace(/^\.\//, "");
+      if (!shipped.includes(target) && !shipped.includes(fromRoot)) dangling.push(`${file} → ${ref}`);
+    }
+  }
+  if (dangling.length === 0) {
+    ok(`${name}: every document path named in a shipped declaration file resolves inside the package`);
+  } else {
+    fail(
+      `${name}: ${dangling.length} document path(s) in shipped declaration files point outside the package — ` +
+        `${dangling.join(", ")}; write them as absolute URLs or ship the document`,
+    );
+  }
+
+  // A readme table that lists API names is a claim that they are exported.
+  const entry = entryDeclaration(pkgDir);
+  const listed = tableIdentifiers(readFileSync(repoReadme, "utf8"));
+  if (listed.length === 0) continue;
+  if (!entry || !existsSync(entry)) {
+    fail(`${name}: README lists ${listed.length} API name(s) but the entry declaration file is not built — cannot check them`);
+    continue;
+  }
+  const exported = declaredExports(entry);
+  const missing = listed.filter((id) => !exported.has(id));
+  if (missing.length === 0) {
+    ok(`${name}: all ${listed.length} API name(s) the README lists are exported from the package entry`);
+  } else {
+    fail(`${name}: README lists ${missing.length} API name(s) the package entry does not export — ${missing.join(", ")}`);
+  }
+}
+
+/**
+ * Relative document paths (`*.md`) mentioned in a declaration file. A path that
+ * is part of a URL is skipped: the lookbehind refuses a path whose first segment
+ * follows `/`, `:` or a word character.
+ */
+function documentReferences(text: string): string[] {
+  const refs = new Set<string>();
+  for (const m of text.matchAll(/(?<![\w/:.-])((?:\.{1,2}\/)*[\w.-]+(?:\/[\w.-]+)*\.md)\b/g)) refs.add(m[1]);
+  return [...refs];
+}
+
+/** Plain identifiers in code spans inside markdown table rows. */
+function tableIdentifiers(markdown: string): string[] {
+  const ids = new Set<string>();
+  for (const line of markdown.split("\n")) {
+    if (!line.trimStart().startsWith("|")) continue;
+    for (const m of line.matchAll(/`([A-Za-z_$][\w$]*)`/g)) ids.add(m[1]);
+  }
+  return [...ids];
+}
+
+function entryDeclaration(pkgDir: string): string | null {
+  const manifest = JSON.parse(readFileSync(join(pkgDir, "package.json"), "utf8"));
+  const root = manifest.exports?.["."];
+  const types = typeof root === "object" && root !== null ? root.types : manifest.types;
+  return typeof types === "string" ? join(pkgDir, types) : null;
+}
+
+/**
+ * Names a declaration file exports, following `export … from` and `export *`.
+ * Reads the regular form tsc emits — enough for the declaration files this gate
+ * sees; a construct it does not know reads as "not exported", which fails loudly
+ * rather than passing silently.
+ */
+function declaredExports(file: string, seen = new Set<string>()): Set<string> {
+  const names = new Set<string>();
+  if (seen.has(file) || !existsSync(file)) return names;
+  seen.add(file);
+  const text = readFileSync(file, "utf8");
+  const resolve = (spec: string) => join(dirname(file), spec.replace(/\.(?:ts|js)$/, ".d.ts"));
+  for (const m of text.matchAll(/export\s+(?:type\s+)?\{([^}]*)\}/g)) {
+    for (const part of m[1].split(",")) {
+      const name = part.trim().replace(/^type\s+/, "").split(/\s+as\s+/).pop()?.trim();
+      if (name) names.add(name);
+    }
+  }
+  for (const m of text.matchAll(/export\s+(?:declare\s+)?(?:abstract\s+)?(?:function|const|let|var|class|interface|type|enum|namespace)\s+([A-Za-z_$][\w$]*)/g)) {
+    names.add(m[1]);
+  }
+  for (const m of text.matchAll(/export\s+\*\s+as\s+([A-Za-z_$][\w$]*)\s+from/g)) names.add(m[1]);
+  for (const m of text.matchAll(/export\s+\*\s+from\s+["']([^"']+)["']/g)) {
+    for (const n of declaredExports(resolve(m[1]), seen)) names.add(n);
+  }
+  return names;
 }
 
 // ── Axis 6: .NET consumption ───────────────────────────────────────────────
@@ -462,6 +563,36 @@ for (const [id, srcPath] of Object.entries(NUGET_SOURCE_PATHS)) {
   } else {
     ok(`${id}: no publish lag (source ${src}, registry ${latest})`);
   }
+
+  // The XML documentation file ships in the package and is what an IDE shows on
+  // hover — the NuGet counterpart of axis 5's declaration-file check. What it
+  // says is exactly the `///` comments, so the source is read; the package
+  // carries no document besides its readme.
+  const shippedDocs = /<PackageReadmeFile>([^<]+)<\/PackageReadmeFile>/.exec(readFileSync(srcPath, "utf8"))?.[1].trim();
+  const dangling: string[] = [];
+  for (const file of sourceFiles(dirname(srcPath), ".cs")) {
+    const xmlDoc = readFileSync(file, "utf8").split("\n").filter((l) => l.trimStart().startsWith("///")).join("\n");
+    for (const ref of documentReferences(xmlDoc)) {
+      if (ref !== shippedDocs) dangling.push(`${relative(dirname(srcPath), file).replace(/\\/g, "/")} → ${ref}`);
+    }
+  }
+  if (dangling.length === 0) ok(`${id}: every document path named in the shipped XML documentation resolves inside the package`);
+  else {
+    fail(
+      `${id}: ${dangling.length} document path(s) in XML documentation point outside the package — ` +
+        `${dangling.join(", ")}; write them as absolute URLs`,
+    );
+  }
+}
+
+function sourceFiles(dir: string, ext: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      if (entry.name !== "bin" && entry.name !== "obj") out.push(...sourceFiles(join(dir, entry.name), ext));
+    } else if (entry.name.endsWith(ext)) out.push(join(dir, entry.name));
+  }
+  return out;
 }
 
 // 6b — provenance of the local restore, as axis 2.
