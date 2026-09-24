@@ -60,7 +60,21 @@ interface Row {
 
 const bytes = (value: unknown): number => Buffer.byteLength(JSON.stringify(value));
 
-/** The runtime's describe rule (bootstrap `describeElement`): text capped at 500, attribute values at 200. */
+/** The runtime's accessible-name rule (bootstrap `accessibleName`): aria-label, then alt, then collapsed text, capped at 100. */
+function accessibleName(el: Element): string | null {
+  const label = el.getAttribute("aria-label");
+  if (label && label.trim().length > 0) return label.trim().slice(0, 100);
+  const alt = el.getAttribute("alt");
+  if (alt && alt.trim().length > 0) return alt.trim().slice(0, 100);
+  const raw = el.textContent;
+  if (!raw) return null;
+  const text = raw.replace(/\s+/g, " ").trim();
+  return text.length > 0 ? text.slice(0, 100) : null;
+}
+
+let nextRef = 1;
+
+/** The runtime's describe rule (bootstrap `describeElement`): text capped at 500, attribute values at 200, plus ref and name. */
 function describe(el: Element): ElementDescriptor {
   const attributes: Record<string, string> = {};
   for (const attr of Array.from(el.attributes)) {
@@ -69,7 +83,10 @@ function describe(el: Element): ElementDescriptor {
   }
   const raw = el.textContent;
   const text = raw && raw.trim().length > 0 ? (raw.length > 500 ? raw.slice(0, 500) + "…" : raw) : null;
-  return { id: el.getAttribute("data-viv-id")!, tag: el.tagName.toLowerCase(), text, attributes };
+  return {
+    id: el.getAttribute("data-viv-id")!, ref: `ref:${nextRef++}`, tag: el.tagName.toLowerCase(),
+    text, attributes, name: accessibleName(el),
+  };
 }
 
 function parts(ctx: EditContext): { selection: number; untrusted: number; total: number } {

@@ -8,8 +8,11 @@
     "url": "git+https://github.com/iyulab/vivarium-gallery.git"
   },
   "license": "Apache-2.0",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
   "engines": {
-    "node": ">=23"
+    "node": ">=22.18"
   },
   "dependencies": {
     "@vivariumjs/agent": "^0.3.1",
@@ -17,7 +20,10 @@
     "@vivariumjs/runtime": "^0.6.0"
   },
   "devDependencies": {
+    "@types/jsdom": "^30.0.0",
+    "@types/node": "^26.6.2",
     "jsdom": "^29.1.1",
-    "playwright-core": "^1.63.0"
+    "playwright-core": "^1.63.0",
+    "typescript": "^7.0.2"
   }
 }

@@ -100,7 +100,9 @@ function byteIdentical(a: Record<string, string>, b: Record<string, string>): st
 
 export async function runRollbackGate(input: RollbackGateInput): Promise<RollbackGateRecord> {
   const { base, target, sessionId, fingerprint } = input;
-  const checks = { rolledBack: false, byteIdentical: false, lineageConsistent: false, reapplied: false };
+  const checks: RollbackGateRecord["checks"] = {
+    rolledBack: false, byteIdentical: false, lineageConsistent: false, reapplied: false,
+  };
   const detail: Record<string, string> = {};
 
   // 롤백 직전 상태 스냅샷 (4단계 재적용 판정 기준) + ledger 기준선.

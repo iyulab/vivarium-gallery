@@ -31,6 +31,11 @@ jobs:
       - name: Install from the registry
         run: npm install
 
+      # Type stripping runs the host's .ts files without checking them, so the
+      # check is its own step — against the registry packages just installed.
+      - name: Type-check the host
+        run: npm run typecheck
+
       # One command, because the gates are one set. run-gates owns the start
       # order, the ports, and which exhibit each gate needs — the same script a
       # person runs locally, so CI and the README cannot drift apart. It fails
