@@ -30,7 +30,8 @@
  *      must be registry-resolved (https://registry.npmjs.org/...) and
  *      satisfy the declared range. Catches exactly the stale-local-state
  *      class of the originating issue without touching node_modules.
- *   3. Clean-room reproduction — in a temp dir with only package.json:
+ *   3. Clean-room reproduction — in a temp dir with only package.json and an
+ *      npm cache of its own (a shared cache answers with the machine's history):
  *      `npm install --package-lock-only` (registry resolution), assert the
  *      generated lockfile carries no file:/link: resolutions, then `npm ci`
  *      (real install). This IS the fresh-consumer experience, executed.
@@ -244,7 +245,10 @@ console.log("# axis 3 — clean-room npm ci reproduction");
 const tempDir = mkdtempSync(join(tmpdir(), "vivarium-consumption-"));
 try {
   writeFileSync(join(tempDir, "package.json"), JSON.stringify(pkg, null, 2));
-  const lockGen = npm(["install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund"], tempDir);
+  // Its own npm cache too: the machine's cache keeps registry answers for a
+  // while (packument max-age), so a shared one reports the machine's history.
+  const cache = ["--cache", join(tempDir, ".npm-cache")];
+  const lockGen = npm(["install", "--package-lock-only", "--ignore-scripts", "--no-audit", "--no-fund", ...cache], tempDir);
   if (lockGen.status !== 0) {
     fail(`clean-room: lockfile generation failed (exit ${lockGen.status}): ${lockGen.stderr.slice(0, 300)}`);
   } else {
@@ -259,7 +263,7 @@ try {
     } else {
       fail(`clean-room: non-registry resolutions found: ${bad.map(([k]) => k).join(", ")}`);
     }
-    const ci = npm(["ci", "--ignore-scripts", "--no-audit", "--no-fund"], tempDir);
+    const ci = npm(["ci", "--ignore-scripts", "--no-audit", "--no-fund", ...cache], tempDir);
     if (ci.status === 0) {
       ok("clean-room: npm ci succeeded (fresh-consumer install reproduces)");
     } else {
@@ -631,7 +635,10 @@ if (!existsSync(assetsPath)) {
 }
 
 // 6c — clean-room restore, as axis 3: the project file alone, an empty package
-// cache, and the registry as the only source.
+// cache, an empty HTTP cache, and the registry as the only source. The HTTP
+// cache is NuGet's machine-wide copy of registry answers; sharing it, this
+// "fresh consumer" was told a version published minutes ago did not exist
+// while nuget.org already served it — a machine's history, not a consumer's.
 const netRoom = mkdtempSync(join(tmpdir(), "vivarium-consumption-net-"));
 try {
   writeFileSync(join(netRoom, "StageHost.csproj"), stageCsproj);
@@ -644,7 +651,7 @@ try {
     cwd: netRoom,
     encoding: "utf8",
     timeout: 300_000,
-    env: { ...process.env, NUGET_PACKAGES: join(netRoom, "packages") },
+    env: { ...process.env, NUGET_PACKAGES: join(netRoom, "packages"), NUGET_HTTP_CACHE_PATH: join(netRoom, "http-cache") },
   });
   if (r.status === 0) ok("clean-room: stage-host restores from the NuGet registry alone");
   else fail(`clean-room: dotnet restore failed (exit ${r.status}): ${`${r.stdout}${r.stderr}`.slice(-300)}`);
