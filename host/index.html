@@ -49,6 +49,8 @@
     #canvas, #preview { display: flex; gap: 0.5rem; }
     .screen { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; }
     .screen-frame { flex: 1 1 auto; min-height: 0; }
+    .screen-faults { margin: 0.25rem 0 0; padding: 0.25rem 0.5rem 0.25rem 1.25rem; font-size: 0.75rem; color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; border-radius: 4px; }
+    .screen-faults li[data-kind="unresponsive"] { font-weight: 600; }
     /* 라벨은 화면이 여럿일 때만 자리를 차지한다 — 하나뿐이면 말할 것이 없다. */
     .screen-label { display: none; }
     .multi .screen-label {

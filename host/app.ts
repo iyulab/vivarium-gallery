@@ -27,7 +27,7 @@
  *   8. all chat turns after the first go through /agent/refine (lineage)
  */
 import { mountSandbox, CapabilityRegistry, RpcError, STALE_ELEMENT_REFERENCE } from "@vivariumjs/runtime";
-import type { ElementDescriptor, EditContext } from "@vivariumjs/runtime";
+import type { ElementDescriptor, EditContext, SandboxFault } from "@vivariumjs/runtime";
 import { addApproval } from "@vivariumjs/changeset";
 import type { ExhibitDefinition } from "./exhibit-schema.ts";
 import { renderChangesetReview } from "./review.ts";
@@ -165,18 +165,34 @@ let appliedSessionId: string | null = null; // last applied stage session — th
  * 명제가 *한 변경이 두 화면을 함께 바꾼다* 이므로 전환은 그 절반을 가린다 —
  * apply 가 둘을 바꾸고 rollback 이 둘을 되돌리는 것을 사람이 볼 수 없다.
  */
-const canvases = new Map<string, ReturnType<typeof mountSandbox>>();
-const previews = new Map<string, ReturnType<typeof mountSandbox>>();
+type Sandbox = ReturnType<typeof mountSandbox>;
+type ScreenKind = "canvas" | "preview";
+const canvases = new Map<string, Sandbox>();
+const previews = new Map<string, Sandbox>();
+const slotsOf: Record<ScreenKind, Map<string, ScreenSlot>> = { canvas: new Map(), preview: new Map() };
+let registry: CapabilityRegistry;
+/**
+ * 생성 코드가 응답을 멈추면 감시자가 샌드박스를 내린다. 내려간 화면은 여기 남고,
+ * 다음에 그 화면을 그릴 때 새 샌드박스로 다시 띄운다 — 같은 코드를 곧바로 다시 돌리면
+ * 같은 자리에서 또 멈추므로, 되살리는 계기는 «새로 그릴 것이 생겼을 때» 다.
+ */
+const stopped = new Set<Sandbox>();
+const UNRESPONSIVE_MS = 5_000;
+
+interface ScreenSlot {
+  frame: HTMLElement;
+  faults: HTMLElement;
+}
 
 /**
  * 컨테이너 안에 화면마다 라벨 붙은 자리를 만든다. 라벨이 `artifactId` 인 것이
  * 요점이다 — 화면이 여럿일 때 사람이 어느 것을 보고 있는지 말할 수 없으면
  * 여럿을 보여 주는 의미가 절반으로 준다.
  */
-function buildScreens(container: HTMLElement, ids: string[]): Map<string, HTMLElement> {
+function buildScreens(container: HTMLElement, ids: string[]): Map<string, ScreenSlot> {
   container.replaceChildren();
   container.classList.toggle("multi", ids.length > 1);
-  const slots = new Map<string, HTMLElement>();
+  const slots = new Map<string, ScreenSlot>();
   for (const id of ids) {
     const box = document.createElement("div");
     box.className = "screen";
@@ -185,9 +201,15 @@ function buildScreens(container: HTMLElement, ids: string[]): Map<string, HTMLEl
     label.textContent = id;
     const frame = document.createElement("div");
     frame.className = "screen-frame";
-    box.append(label, frame);
+    // 마운트 뒤의 결함(리스너·타이머 예외, 처리되지 않은 거부, 응답 없음)은 화면 안에서
+    // 일어나 호스트가 볼 수 없다 — 런타임이 알려 주는 것을 그 화면 바로 밑에 적는다.
+    const faults = document.createElement("ul");
+    faults.className = "screen-faults";
+    faults.setAttribute("aria-live", "polite");
+    faults.hidden = true;
+    box.append(label, frame, faults);
     container.append(box);
-    slots.set(id, frame);
+    slots.set(id, { frame, faults });
   }
   return slots;
 }
@@ -265,10 +287,63 @@ async function readLiveWorld(): Promise<Record<string, string> | null> {
  * 선택도 함께 끝난다 — 남겨 두면 사라진 요소를 선택된 것처럼 보여 준다.
  */
 async function renderCanvases(): Promise<void> {
-  for (const [id, sandbox] of canvases) {
+  for (const id of canvases.keys()) {
+    const sandbox = await screenFor("canvas", id);
     await sandbox.render(liveArtifacts[id] ?? "export default function mount(){}");
   }
   clearSelection();
+}
+
+const FAULT_LABEL: Record<SandboxFault["kind"], string> = {
+  error: "오류",
+  unhandledrejection: "처리되지 않은 거부",
+  unresponsive: "응답 없음 — 이 화면을 내렸습니다. 다시 그리면 새로 띄웁니다",
+};
+
+/** 화면 하나를 띄운다: 감시자를 켜고, 결함을 그 화면 밑에 적고, 캔버스면 선택을 잇는다. */
+async function mountScreen(kind: ScreenKind, id: string): Promise<Sandbox> {
+  const slot = slotsOf[kind].get(id)!;
+  slot.faults.replaceChildren();
+  slot.faults.hidden = true;
+  const sandbox = mountSandbox(slot.frame, {
+    registry,
+    context: { app: `gallery:${exhibit.meta.name}:${id}${kind === "preview" ? "-preview" : ""}` },
+    watchdog: { unresponsiveMs: UNRESPONSIVE_MS },
+  });
+  sandbox.onFault((fault) => {
+    if (fault.kind === "unresponsive") stopped.add(sandbox);
+    const li = document.createElement("li");
+    li.dataset.kind = fault.kind;
+    // message 는 생성 코드가 쓴 것일 수 있다(error·unhandledrejection) — 글자로만 둔다.
+    li.textContent = `${FAULT_LABEL[fault.kind]}: ${fault.message}`;
+    slot.faults.append(li);
+    slot.faults.hidden = false;
+  });
+  (kind === "canvas" ? canvases : previews).set(id, sandbox);
+  await sandbox.whenReady();
+  if (kind === "canvas") {
+    await sandbox.setSelectionMode(true);
+    sandbox.onSelectionChanged((element: ElementDescriptor) => {
+      // 선택은 한 화면 안의 일이다 — 다른 화면을 클릭하면 그 화면으로 옮겨 간다.
+      selectedArtifactId = id;
+      selected = [element];
+      updateSelectionInfo();
+    });
+  }
+  return sandbox;
+}
+
+/** 그 화면의 샌드박스 — 감시자가 내렸으면 새로 띄운 것. 새로 그리기 전에 결함 목록도 비운다. */
+async function screenFor(kind: ScreenKind, id: string): Promise<Sandbox> {
+  const current = (kind === "canvas" ? canvases : previews).get(id)!;
+  if (!stopped.has(current)) {
+    const slot = slotsOf[kind].get(id)!;
+    slot.faults.replaceChildren();
+    slot.faults.hidden = true;
+    return current;
+  }
+  stopped.delete(current);
+  return mountScreen(kind, id);
 }
 
 // ── selection ────────────────────────────────────────────────────────────
@@ -390,26 +465,13 @@ async function init(): Promise<void> {
   titleEl.textContent = `${exhibit.meta.title} — vivarium gallery`;
   document.title = `${exhibit.meta.name} — vivarium gallery`;
 
-  const registry = new CapabilityRegistry();
+  registry = new CapabilityRegistry();
   for (const cap of exhibit.capabilities) {
     registry.grant(cap.descriptor, cap.handler);
   }
-  const canvasSlots = buildScreens(canvasEl, artifactIds);
-  const previewSlots = buildScreens(previewEl, artifactIds);
-  for (const id of artifactIds) {
-    canvases.set(
-      id,
-      mountSandbox(canvasSlots.get(id)!, { registry, context: { app: `gallery:${exhibit.meta.name}:${id}` } }),
-    );
-    previews.set(
-      id,
-      mountSandbox(previewSlots.get(id)!, {
-        registry,
-        context: { app: `gallery:${exhibit.meta.name}:${id}-preview` },
-      }),
-    );
-  }
-  await Promise.all([...canvases.values(), ...previews.values()].map((s) => s.whenReady()));
+  slotsOf.canvas = buildScreens(canvasEl, artifactIds);
+  slotsOf.preview = buildScreens(previewEl, artifactIds);
+  await Promise.all(artifactIds.flatMap((id) => [mountScreen("canvas", id), mountScreen("preview", id)]));
 
   // 재시드는 **조건부다** (채택 U — 위 seeding 절 참조). 살아 있는 세계가 시드와
   // 같으면 재시드는 무의미하고, 다르면 재시드는 파괴다.
@@ -432,16 +494,6 @@ async function init(): Promise<void> {
   const seeded = await get(`/stage/targets/${target}/artifacts`);
   liveArtifacts = seeded.artifacts;
   await renderCanvases();
-
-  for (const [id, sandbox] of canvases) {
-    await sandbox.setSelectionMode(true);
-    sandbox.onSelectionChanged((element: ElementDescriptor) => {
-      // 선택은 한 화면 안의 일이다 — 다른 화면을 클릭하면 그 화면으로 옮겨 간다.
-      selectedArtifactId = id;
-      selected = [element];
-      updateSelectionInfo();
-    });
-  }
   updateSelectionInfo();
 
   setPendingUi(false);
@@ -501,7 +553,8 @@ async function sendChat(): Promise<void> {
     // only, no live effect (approval happens on the approve button).
     const propose = await post(`/stage/targets/${target}/changesets`, pendingProposal!.changeset);
     // 프리뷰도 화면 전부다 — 제안이 둘을 바꾸면 둘 다 미리 보인다.
-    for (const [id, sandbox] of previews) {
+    for (const id of previews.keys()) {
+      const sandbox = await screenFor("preview", id);
       await sandbox.render(propose.preview[id] ?? liveArtifacts[id] ?? "export default function mount(){}");
     }
     // 결과(프리뷰) 옆에 **무엇이 왜 바뀌는가**를 함께 둔다 — changeset 이 이미 담고

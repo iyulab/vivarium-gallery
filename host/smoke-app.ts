@@ -30,7 +30,7 @@ import exhibit from "../exhibits/dashboard/exhibit.ts";
 // line prints. A gate that guesses the root gets a 404 page and blames the app.
 const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:8890";
 const APP_URL = `${BASE.replace(/\/$/, "")}/host/index.html`;
-const TOTAL = 8;
+const TOTAL = 10;
 
 let passCount = 0;
 const failures: string[] = [];
@@ -114,6 +114,70 @@ async function resetToSeed(): Promise<void> {
     }),
   });
   if (!res.ok) throw new Error(`시드 초기화 실패 — POST /stage/targets ${res.status} ${await res.text()}`);
+}
+
+/** 타깃의 주 화면을 `code` 로 바꿔 둔다 — 앱은 시드와 다른 세계를 «적용된 변경» 으로 보고 그대로 그린다. */
+async function seedPrimary(code: string): Promise<void> {
+  const res = await fetch(`${BASE.replace(/\/$/, "")}/stage/targets`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      target: exhibit.target,
+      artifacts: { ...exhibit.artifacts, [exhibit.primaryArtifactId]: code },
+      ...(exhibit.schema ? { schema: exhibit.schema } : {}),
+      ...(exhibit.data ? { data: exhibit.data } : {}),
+    }),
+  });
+  if (!res.ok) throw new Error(`결함 탐침 시드 실패 — ${res.status} ${await res.text()}`);
+}
+
+async function faultSteps(): Promise<void> {
+  const faultText = (page: PageSession["page"], kind: string) =>
+    page.$$eval(`#canvas .screen-faults li[data-kind="${kind}"]`, (els) => els.map((e) => e.textContent ?? "").join(" | "));
+
+  // 9 — 타이머가 던진 예외: 렌더는 성공했고, 화면은 그려졌고, 그 뒤에 깨졌다.
+  const desc9 = "마운트 뒤 타이머 예외가 그 화면 밑에 «오류» 로 적힌다 — 렌더 성공 뒤의 결함도 검토자에게 보인다";
+  await seedPrimary(`export default function mount(root) {
+    root.textContent = "fault probe";
+    setTimeout(() => { throw new Error("probe: a timer that throws"); }, 50);
+  }`);
+  let probe = await open(APP_URL);
+  try {
+    const shown = await until("the timer fault to reach the screen", probe, () => faultText(probe.page, "error"));
+    if (!shown.includes("probe: a timer that throws")) throw new Error(`적힌 것: ${shown}`);
+    ok(9, desc9);
+  } catch (err) {
+    fail(9, desc9, err);
+  } finally {
+    await probe.close();
+  }
+
+  // 10 — 응답을 멈춘 화면: 감시자가 내리고 그렇게 적는다 → 다시 그리면 새로 띄운다.
+  const desc10 = "응답을 멈춘 화면은 감시자가 내리고 «응답 없음» 으로 적는다 · 다시 그리면(시드 복원) 새 샌드박스로 복구되고 결함 목록이 비워진다";
+  await seedPrimary(`export default function mount(root) {
+    root.textContent = "spin probe";
+    setTimeout(() => { const end = performance.now() + 12000; while (performance.now() < end) {} }, 50);
+  }`);
+  probe = await open(APP_URL);
+  try {
+    const shown = await until("the watchdog to report the spinning screen", probe, () => faultText(probe.page, "unresponsive"), 20_000);
+    if (!/5000ms/.test(shown)) throw new Error(`적힌 것: ${shown}`);
+    const frames = await probe.page.$$eval("#canvas .screen-frame iframe", (els) => els.length);
+    if (frames !== Object.keys(exhibit.artifacts).length - 1) {
+      throw new Error(`내려간 화면의 iframe 이 남았다 — 캔버스 iframe ${frames}개`);
+    }
+    await click(probe.page, "#reseed-btn");
+    await untilSandbox(probe, "#canvas", "the canvas to come back with the seed", (t) => t.includes("Revenue"),
+      "시드 복원 뒤에도 화면이 돌아오지 않았다");
+    const left = await probe.page.$$eval("#canvas .screen-faults li", (els) => els.length);
+    if (left !== 0) throw new Error(`다시 그린 뒤에도 결함 ${left}건이 남았다`);
+    ok(10, desc10);
+  } catch (err) {
+    fail(10, desc10, err);
+  } finally {
+    await probe.close();
+    await resetToSeed();
+  }
 }
 
 async function main(): Promise<void> {
@@ -316,6 +380,10 @@ async function main(): Promise<void> {
     } catch (err) {
       fail(n, "먼저 적용된 뒤의 승인은 **거부**로 보인다 — 사유 칸이 열리고 라이브는 그대로다", err);
     }
+
+    // ── 9·10. 마운트 뒤의 결함이 그 화면 밑에 보인다 ─────────────────────────
+    //    (자기 세션에서 — 여기서는 샌드박스 안의 예외가 판정 대상이지 결함이 아니다)
+    await faultSteps();
 
     // 페이지가 조용히 터지고 있었다면 위 단언들이 초록이어도 그것은 결함이다.
     if (session.faults.length > 0) {
