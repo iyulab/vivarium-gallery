@@ -28,19 +28,21 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { relative, sep } from "node:path";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { addApproval, artifactFingerprint } from "@vivariumjs/changeset";
 import exhibit from "../exhibits/dashboard/exhibit.ts";
 import { runRollbackGate } from "./tools/rollback-gate.ts";
+import { reverifyRun } from "./tools/reverify-run.ts";
 import { renderFor, undeclaredArtifacts } from "./tools/render-check.ts";
 
 const BASE = process.env.SMOKE_BASE_URL ?? "http://localhost:8890";
 const TARGET = exhibit.target;
 const ARTIFACT_ID = exhibit.primaryArtifactId;
 const SEED_CONTENT = exhibit.artifacts[ARTIFACT_ID];
-const TOTAL = 19;
+const TOTAL = 20;
 
 // Turn-cost instrumentation gate: every agent turn this smoke
 // drives must land in GET /agent/metrics (assertion 11).
@@ -812,6 +814,49 @@ async function main(): Promise<void> {
     );
   } catch (err) {
     fail(n, "덮이지 않은 화면을 센다", err);
+  }
+
+  // ── 20. 이 실행이 남길 문서만으로 주장을 다시 확인할 수 있다 ──────────────
+  //    (archive-run 이 보관하는 두 파일을 그대로 써서 오프라인 재검증을 돌린다 —
+  //    그리고 한 바이트를 바꾸면 재검증이 그것을 잡는다)
+  n = 20;
+  const desc20 = "보관 문서만으로 재검증 — 턴 문서·계보·stage 제출·승인 결속 / 변조 2종은 FAIL / 문서 없는 run 은 «재검증 불가»";
+  const dirs: string[] = [];
+  try {
+    const [documents, history] = await Promise.all([get("/agent/documents"), get("/agent/history")]);
+    const runAt = (docs: unknown, withDocuments = true) => {
+      const dir = mkdtempSync(join(tmpdir(), "gallery-reverify-"));
+      dirs.push(dir);
+      writeFileSync(join(dir, "turns.json"), JSON.stringify({ history }));
+      if (withDocuments) writeFileSync(join(dir, "documents.json"), JSON.stringify(docs));
+      return reverifyRun(dir);
+    };
+    const honest = runAt(documents);
+    if (honest.status !== "verified") throw new Error(`the honest run did not re-verify — ${JSON.stringify(honest)}`);
+    const submissions = (documents.stageSubmissions ?? []).length;
+    const approvals = (documents.stageSubmissions ?? []).reduce((a: number, s: any) => a + (s.changeset?.approvals?.length ?? 0), 0);
+    if (submissions === 0 || approvals === 0) throw new Error(`nothing was sent to stage with an approval — ${submissions} submission(s), ${approvals} approval(s)`);
+
+    const edited = structuredClone(documents);
+    edited.turns[0].changeset.intent += " (edited)";
+    const e = runAt(edited);
+    if (e.status !== "failed" || !e.problems.some((p) => /fingerprint does not match/.test(p))) {
+      throw new Error(`an edited turn document was not caught — ${JSON.stringify(e)}`);
+    }
+    const forged = structuredClone(documents);
+    const target = forged.stageSubmissions.find((s: any) => (s.changeset?.approvals?.length ?? 0) > 0);
+    target.changeset.approvals[0].fingerprint = "sha256:" + "0".repeat(64);
+    const f = runAt(forged);
+    if (f.status !== "failed" || !f.problems.some((p) => /approval 1 names/.test(p))) {
+      throw new Error(`an approval naming other bytes was not caught — ${JSON.stringify(f)}`);
+    }
+    const old = runAt(null, false);
+    if (old.status !== "unverifiable") throw new Error(`a run without documents should be unverifiable — ${JSON.stringify(old)}`);
+    ok(n, `${desc20} (${honest.checks}건 · 제출 ${submissions} · 승인 ${approvals})`);
+  } catch (err) {
+    fail(n, desc20, err);
+  } finally {
+    for (const d of dirs) rmSync(d, { recursive: true, force: true });
   }
 
   console.log(`smoke: ${passCount}/${TOTAL - skipCount} PASS${skipNote}`);

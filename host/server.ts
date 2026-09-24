@@ -9,6 +9,8 @@
  *   (both supply the live schema/data facets — with their stage fingerprints as
  *    `base` — for exhibits that seed them; refine re-reads them on a re-base)
  *   GET  /agent/history · GET /agent/metrics
+ *   GET  /agent/documents → every turn's inputs and changeset, and every
+ *        changeset forwarded to stage with its answer (what a run archives)
  *   GET  /exhibit        → 로드된 전시물의 meta/target/primaryArtifactId
  *
  * The agent runs here (not in the page) because the changeset SDK is
@@ -102,6 +104,42 @@ const provider = instrumentProvider(resolveProvider(), metrics);
 
 let session: ProposalSession | null = null;
 
+// ─── What a run keeps so its claims can be re-checked ──────────────────────
+//
+// The session's history names each turn's changeset by fingerprint; the
+// ledger names each apply by fingerprint. Neither keeps the document, so an
+// archived run could say a gate passed but nobody could check it again. The
+// host is the one party that sees both what the agent produced and what was
+// sent to stage — so it keeps them, as it saw them.
+
+interface TurnDocument {
+  turn: number;
+  endpoint: "session" | "refine";
+  instruction: string;
+  editContext: unknown;
+  outcome: unknown;
+  changeset: unknown | null;
+}
+interface StageSubmission {
+  target: string;
+  changeset: unknown;
+  status: number;
+  answer: unknown;
+}
+let turnDocuments: TurnDocument[] = [];
+let stageSubmissions: StageSubmission[] = [];
+
+function keepTurn(endpoint: TurnDocument["endpoint"], instruction: string, editContext: unknown, result: { outcome: unknown; proposal: { changeset: unknown } | null }) {
+  turnDocuments.push({
+    turn: turnDocuments.length + 1,
+    endpoint,
+    instruction,
+    editContext: editContext ?? null,
+    outcome: result.outcome,
+    changeset: result.proposal?.changeset ?? null,
+  });
+}
+
 // ─── Live non-UI facets (the adapter side of the agent's facet inputs) ──────
 //
 // The agent authors schema/data operations against a view of the live facet
@@ -162,6 +200,8 @@ function toArtifactsRecord(input: unknown): Record<string, string> {
 
 async function handleAgent(pathname: string, body: Record<string, unknown>): Promise<unknown> {
   if (pathname === "/agent/session") {
+    turnDocuments = [];
+    stageSubmissions = [];
     session = createProposalSession({
       provider,
       // Knowledge port: the exhibit's catalog/rules,
@@ -182,7 +222,11 @@ async function handleAgent(pathname: string, body: Record<string, unknown>): Pro
       latencyMs: Math.round(performance.now() - startedAt),
       outcome: result.outcome,
     });
+    keepTurn("session", String(body.intent), body.editContext, result);
     return { ...result, history: session.history() };
+  }
+  if (pathname === "/agent/documents") {
+    return { turns: turnDocuments, stageSubmissions };
   }
   if (pathname === "/agent/metrics") {
     // Turn-cost record: one entry per agent turn — latency,
@@ -216,6 +260,7 @@ async function handleAgent(pathname: string, body: Record<string, unknown>): Pro
       latencyMs: Math.round(performance.now() - startedAt),
       outcome: result.outcome,
     });
+    keepTurn("refine", String(body.instruction), body.editContext, result);
     return { ...result, history: session.history() };
   }
   throw new Error(`unknown agent endpoint: ${pathname}`);
@@ -235,6 +280,14 @@ const contentTypes: Record<string, string> = {
   ".svg": "image/svg+xml",
 };
 
+function parseOr(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
 /** run 아카이브의 스크린샷 등 바이너리는 바이트 그대로 서빙해야 한다. */
 const binaryExts = new Set([".png", ".jpg"]);
 
@@ -245,13 +298,19 @@ const server = createServer(async (req, res) => {
     try {
       const chunks: Buffer[] = [];
       for await (const chunk of req) chunks.push(chunk as Buffer);
+      const sent = req.method === "GET" ? undefined : Buffer.concat(chunks).toString("utf8");
       const upstream = await fetch(stageUrl + url.pathname.slice("/stage".length), {
         method: req.method,
         headers: { "content-type": "application/json" },
-        body: req.method === "GET" ? undefined : Buffer.concat(chunks).toString("utf8"),
+        body: sent,
       });
+      const answer = await upstream.text();
+      const proposed = req.method === "POST" ? /^\/stage\/targets\/([^/]+)\/changesets$/.exec(url.pathname) : null;
+      if (proposed && sent) {
+        stageSubmissions.push({ target: decodeURIComponent(proposed[1]), changeset: parseOr(sent), status: upstream.status, answer: parseOr(answer) });
+      }
       res.writeHead(upstream.status, { "content-type": "application/json; charset=utf-8" });
-      res.end(await upstream.text());
+      res.end(answer);
     } catch (err) {
       res.writeHead(502, { "content-type": "application/json; charset=utf-8" });
       res.end(JSON.stringify({ error: `stage host unreachable at ${stageUrl}: ${String(err)}` }));
@@ -279,7 +338,7 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  if (req.method === "GET" && (url.pathname === "/agent/history" || url.pathname === "/agent/metrics")) {
+  if (req.method === "GET" && (url.pathname === "/agent/history" || url.pathname === "/agent/metrics" || url.pathname === "/agent/documents")) {
     res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
     res.end(JSON.stringify(await handleAgent(url.pathname, {})));
     return;

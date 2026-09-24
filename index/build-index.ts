@@ -31,6 +31,8 @@ interface RunEntry {
   label: string;
   gate: "PASS" | "FAIL" | "없음";
   hasScreenshot: boolean;
+  /** Whether the run kept the documents `reverify-run.ts` re-checks. */
+  hasDocuments: boolean;
   turnCount: number | null;
 }
 
@@ -116,6 +118,7 @@ export async function buildIndex(options: BuildIndexOptions = {}): Promise<strin
           label: runName,
           gate,
           hasScreenshot: existsSync(join(runPath, "screenshot.png")),
+          hasDocuments: existsSync(join(runPath, "documents.json")),
           turnCount,
         });
       }
@@ -135,13 +138,18 @@ export async function buildIndex(options: BuildIndexOptions = {}): Promise<strin
             const shotBadge = r.hasScreenshot
               ? ""
               : `\n    <span class="badge none" data-screenshot="missing">스크린샷 없음</span>`;
+            // 문서를 보관하기 전의 run: 게이트 판정은 기록돼 있지만 다시 확인할 입력이 없다.
+            const docsBadge = r.hasDocuments
+              ? ""
+              : `\n    <span class="badge none" data-reverify="unavailable">재검증 불가</span>`;
+            const docsLink = r.hasDocuments ? ` · <a href="${base}/documents.json">documents</a>` : "";
             return `<article class="run">
   ${shot}
   <div class="run-meta">
     <b>${escapeHtml(r.label)}</b>
-    <span class="badge ${badgeClass}">롤백 게이트 ${r.gate}</span>${shotBadge}
+    <span class="badge ${badgeClass}">롤백 게이트 ${r.gate}</span>${shotBadge}${docsBadge}
     <span>${r.turnCount === null ? "" : `${r.turnCount}턴`}</span>
-    <nav><a href="${base}/final.html">최종 결과</a> · <a href="${base}/RUN.md">RUN.md</a> · <a href="${base}/turns.json">turns</a></nav>
+    <nav><a href="${base}/final.html">최종 결과</a> · <a href="${base}/RUN.md">RUN.md</a> · <a href="${base}/turns.json">turns</a>${docsLink}</nav>
   </div>
 </article>`;
           })

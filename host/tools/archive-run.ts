@@ -4,6 +4,9 @@
  * 남아 전시 효과를 갖는 "전시물"의 실체다.
  *
  *   turns.json     — /agent/history(계보) + /agent/metrics(턴 비용) 원장
+ *   documents.json — /agent/documents: 턴마다 입력(지시·편집 컨텍스트)과 검증된
+ *                    changeset 문서, stage 에 보낸 문서(승인 레코드 포함)와 그 답.
+ *                    `reverify-run.ts` 가 이것만으로 주장을 다시 확인한다
  *   artifacts/     — 최종 라이브 아티팩트 원본 (.js mount 모듈)
  *   final.html     — **자립형 뷰어**: 아티팩트 소스 + capability 스냅샷을
  *                    인라인 — API 키·서버 없이 브라우저로 열람 가능
@@ -74,11 +77,26 @@ async function get(path: string): Promise<any> {
 }
 
 // ── 수집 ─────────────────────────────────────────────────────────────────
-const [history, metrics, live] = await Promise.all([
+const [history, metrics, live, documents] = await Promise.all([
   get("/agent/history"),
   get("/agent/metrics"),
   get(`/stage/targets/${exhibit.target}/artifacts`),
+  get("/agent/documents"),
 ]);
+
+// 계보가 이름 부른 문서가 전부 여기 있어야 한다 — 없으면 이 run 은 «게이트가
+// 통과했다» 만 말하고 그것을 다시 확인할 길이 없다. 아카이브가 되돌릴 수 있는
+// 마지막 순간이므로 여기서 막는다(스크린샷과 같은 저울).
+const kept = new Set(
+  (documents.turns ?? []).map((t: any) => t.changeset?.fingerprint).filter((f: unknown) => typeof f === "string"),
+);
+const unkept = (history.history ?? [])
+  .filter((t: any) => t.status === "validated" && !kept.has(t.fingerprint))
+  .map((t: any) => `turn ${t.turn} (${t.fingerprint})`);
+if (unkept.length > 0) {
+  console.error(`archive-run: the host kept no document for ${unkept.join(", ")} — refusing to archive claims nobody can re-check`);
+  process.exit(1);
+}
 const artifacts: Record<string, string> = live.artifacts;
 
 // capability 스냅샷 — 아카이브 시점 1회 invoke.
@@ -94,6 +112,7 @@ mkdirSync(join(runDir, "artifacts"), { recursive: true });
 
 // ── turns.json ───────────────────────────────────────────────────────────
 writeFileSync(join(runDir, "turns.json"), JSON.stringify({ history, metrics }, null, 2));
+writeFileSync(join(runDir, "documents.json"), JSON.stringify(documents, null, 2));
 
 // ── artifacts/ ───────────────────────────────────────────────────────────
 for (const [artifactId, content] of Object.entries(artifacts)) {
@@ -208,6 +227,7 @@ ${rollbackNote}
 - \`final.html\` — 자립형 뷰어 (서버·키 불필요)
 - \`artifacts/\` — 최종 아티팩트 원본
 - \`turns.json\` — 계보 + 턴 비용 원장
+- \`documents.json\` — 턴별 입력·changeset 문서 · stage 에 보낸 문서(승인 포함). 재검증: \`node host/tools/reverify-run.ts exhibits/${exhibitName}/runs/${stamp}-${label}\`
 - \`rollback.json\` — 게이트 기록
 - \`screenshot.png\` — 실행 화면 캡처 (아카이브 필수 입력)
 `,

@@ -45,7 +45,7 @@ run 결과물(최종 화면·턴 기록·롤백 판정)을 그대로 열람할 �
   [`host/exhibit-schema.ts`](host/exhibit-schema.ts)의 `ExhibitDefinition` 하나.
 - `exhibits/<name>/` — 전시물 1건: `exhibit.ts`(시드·capability·knowledge·
   scripted provider) + `scenario.md`(변경 요구 시퀀스·완주 기준·롤백 게이트)
-  + `runs/<yyyymmdd>-<model>/`(실행 아카이브 — final.html·turns.json·
+  + `runs/<yyyymmdd>-<model>/`(실행 아카이브 — final.html·turns.json·documents.json·
   rollback.json·screenshot.png·RUN.md).
 - 새 전시물 추가 = 디렉터리 추가. 호스트는 변경되지 않는다 — 단 전시물이
   **새 facet 을 요구하면** 계약이 그만큼 넓어진다. `inventory` 가 그 사례로,
@@ -193,6 +193,15 @@ node host/tools/verify-consumption.ts
   넘겨 아무도 알아채지 못했다. 아카이브 시점은 아직 되돌릴 수 있는 자리라
   거기서 막는다. 이미 굳은 run 은 막지 않고 **적는다** — 인덱스가 그 카드에
   "스크린샷 없음"을 표기하고, 생성기가 실행 시 목록을 함께 출력한다.
+  **documents.json** 도 남긴다 — 호스트가 턴마다 본 입력(지시·편집 컨텍스트)과
+  검증된 changeset 문서, stage 에 보낸 문서(승인 레코드 포함)와 그 답
+  (`GET /agent/documents`). 계보가 이름 부른 문서가 하나라도 없으면 아카이브를
+  거부한다.
+- `host/tools/reverify-run.ts` — 아카이브된 run 의 주장을 보관 문서만으로 다시
+  확인한다(서버·모델·키 불필요): 문서마다 스펙 유효성·지문 일치, 계보의 지문 =
+  문서 지문, stage 에 보낸 문서가 어느 턴의 문서인가, 승인 레코드가 그 지문을
+  정확히 가리키는가. 문서를 보관하기 전에 아카이브된 run 은 실패가 아니라
+  «재검증 불가»이고, 인덱스 카드에도 그렇게 표기된다.
 - `host/tools/measure-edit-context.ts` — 전시물마다 편집 컨텍스트의 크기를
   구성요소별(source · screen · selection · untrusted)로 잰다. 판정이 아니라
   측정이라 수치에 대해서는 아무것도 주장하지 않고 exit 0 으로 끝난다.
